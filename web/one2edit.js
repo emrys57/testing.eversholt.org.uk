@@ -510,8 +510,7 @@ one2edit.utils.ObjectUtil.extend(one2edit.events.EventDispatcher.prototype, {
     var target = this._eventCallbackTarget();
     if (one2edit.isDebug(one2edit.events.EventDispatcher.DEBUG_FLAG)) {
       try {
-        console.log("[EventDispatcher/_invokeEventCallback]", "\n\tevent:", event, "\n\teventCallback:", eventName, "\n\teventCallbackTarget:", target, "\n\teventCallbackFunction", target[
-          eventName]);
+        console.log("[EventDispatcher/_invokeEventCallback]", "\n\tevent:", event, "\n\teventCallback:", eventName, "\n\teventCallbackTarget:", target, "\n\teventCallbackFn", target[eventName]);
       } catch (e) {
         console.log("[EventDispatcher/_invokeEventCallback] Can't output event infos.");
       }
@@ -1757,7 +1756,8 @@ one2edit.utils.ObjectUtil.extend(one2edit.elements.TableElement.prototype, one2e
     swfFilename: "One2edit.swf",
     swfLocation: null,
     version: null,
-    location: null,
+    // location: null,
+    location: 'https://demo.one2edit.com/',
     autoCreate: false,
     elementId: "flashContent",
     preferredVersion: null,
@@ -1959,7 +1959,9 @@ one2edit.utils.ObjectUtil.extend(one2edit.elements.TableElement.prototype, one2e
     return _object;
   };
   one2edit.create = function one2edit_create(settings) {
+    console.log('in one2edit.create');
     one2edit.ready(function() {
+      console.log('in one2edit.ready');
       if (_initialized) {
         throw new Error("one2edit already initalized!");
       }
@@ -1969,6 +1971,7 @@ one2edit.utils.ObjectUtil.extend(one2edit.elements.TableElement.prototype, one2e
         }
       }
       if (one2edit.options("singleSignOn") && !one2edit.flashvars("sessionId")) {
+        console.log('in one2edit.singleSignOn');
         var api = new one2edit.net.ServerApi({});
         api.request("user.auth", {
           wwwAuthenticate: false
@@ -1981,6 +1984,7 @@ one2edit.utils.ObjectUtil.extend(one2edit.elements.TableElement.prototype, one2e
         });
         return;
       }
+      console.log('in one2edit.ready(still)');
       var width = (_swfAttributes.hasOwnProperty("width")) ? _swfAttributes.width : "100%";
       var height = (_swfAttributes.hasOwnProperty("height")) ? _swfAttributes.height : "100%";
       if (_options.loadCSS) {
