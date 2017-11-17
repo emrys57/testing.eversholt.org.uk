@@ -1959,7 +1959,6 @@ one2edit.utils.ObjectUtil.extend(one2edit.elements.TableElement.prototype, one2e
     return _object;
   };
   one2edit.create = function one2edit_create(settings) {
-    console.log("In create");
     one2edit.ready(function() {
       if (_initialized) {
         throw new Error("one2edit already initalized!");
@@ -1971,7 +1970,6 @@ one2edit.utils.ObjectUtil.extend(one2edit.elements.TableElement.prototype, one2e
       }
       if (one2edit.options("singleSignOn") && !one2edit.flashvars("sessionId")) {
         var api = new one2edit.net.ServerApi({});
-        console.log('Trying to authorise user');
         api.request("user.auth", {
           wwwAuthenticate: false
         }, function(data) {
