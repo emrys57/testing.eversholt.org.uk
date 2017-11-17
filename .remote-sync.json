@@ -1,0 +1,18 @@
+{
+  "logger": {
+    "title": "Remote Sync"
+  },
+  "uploadOnSave": false,
+  "useAtomicWrites": false,
+  "deleteLocal": false,
+  "hostname": "upload.lcn.com",
+  "target": "testing.eversholt.org.uk",
+  "ignore": [
+    ".remote-sync.json",
+    ".git/**"
+  ],
+  "username": "testing_eversholt_org_uk",
+  "password": "1302gn3v",
+  "watch": [],
+  "transport": "ftp"
+}
