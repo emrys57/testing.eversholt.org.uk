@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<!-- Code from https://support.one2edit.com/Api/#!/one2edit/jsi_one2edit.create -->
+<html>
+<head lang="en">
+  <meta charset="UTF-8">
+  <title>one2edit</title>
+
+  <!-- Load one2edit.js -->
+  <script src='https://<server-url>/scripts/one2edit.js' type="text/javascript"> </script>
+
+    <!--Set size of the one2edit div-->
+    <style>
+    .one2edit {
+      width:940px;
+      height:768px;
+    }
+    </style>
+  </head>
+  <body>
+
+    <div class="one2edit">
+      <!-- Without this div with 'flashContent' as id the swf object can't be placed -->
+      <div id="flashContent"> </div>
+    </div>
+
+    <script type='text/javascript'>
+    // Create a one2edit object with the desired attributes, flashvars, options  and parameters
+    one2edit.create({
+      parameters: {
+        wmode: 'opaque'
+      },
+      flashvars: {
+        server: 'https://<server-url>',
+        sessionId: '<sessionId>',        // A sessionId is returned when we authenticate a user (see API example)
+        clientId: 15,                    // Id of our Client Workspace
+        idleTimeout: 900,
+        jobEditor: {
+          jobId: <jobId>               // A jobId is returned when we start a job template (see API example)
+        }
+      }
+    });
+    </script>
+
+  </body>
+  </html>

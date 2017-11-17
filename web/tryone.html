@@ -25,52 +25,52 @@ and open the template in the editor.
     content will be here, we hope:
 
     Write some text in textbox:
-<input type="text" ng-model="sometext" />
+    <input type="text" ng-model="sometext" />
 
-<h1>Hello {{ sometext }}</h1>
+    <h1>Hello {{ sometext }}</h1>
 
-<div ng-app="" ng-init="firstName='John'">
+    <div ng-app="" ng-init="firstName='John'">
 
-<p>The name is <span ng-bind="firstName"></span></p>
-
-
-<input type="button" value="set color" ng-click="myStyle={color:'red'}">
-<input type="button" value="set background" ng-click="myStyle={'background-color':'blue'}">
-<input type="button" value="clear" ng-click="myStyle={}">
-<br/>
-<span ng-style="myStyle">Sample Text</span>
-<pre>myStyle={{myStyle}}</pre>
+      <p>The name is <span ng-bind="firstName"></span></p>
 
 
+      <input type="button" value="set color" ng-click="myStyle={color:'red'}">
+      <input type="button" value="set background" ng-click="myStyle={'background-color':'blue'}">
+      <input type="button" value="clear" ng-click="myStyle={}">
+      <br/>
+      <span ng-style="myStyle">Sample Text</span>
+      <pre>myStyle={{myStyle}}</pre>
 
-  </div>
-</body>
-<script type='text/javascript'>
 
-console.log('One')
 
-angular.element(document).ready(function () {
-  console.log('Two');
-  one2edit.create({
-    parameters: {
-      wmode: 'opaque'
-    },
-    // flashvars: {
-    //   sessionId: '7cc1f79f4e2b756a2fe8b4ed45e6e8fa',
-    //   clientId: 1
-    // }
-  });
+    </div>
+  </body>
+  <script type='text/javascript'>
+
+  console.log('One')
+
+  angular.element(document).ready(function () {
+    console.log('Two');
+    one2edit.create({
+      parameters: {
+        wmode: 'opaque'
+      },
+      // flashvars: {
+      //   sessionId: '7cc1f79f4e2b756a2fe8b4ed45e6e8fa',
+      //   clientId: 1
+      // }
+    });
 
     console.log('Three');
     // your code here
 
-});
-
+  });
+  
 
 
 </script>
 <script type='text/javascript'>
 var app = angular.module("mydiv", []);
-  // app.css("color", "red")
+// app.css("color", "red")
 </script>
 </html>
