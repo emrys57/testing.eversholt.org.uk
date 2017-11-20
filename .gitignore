@@ -1,3 +1,4 @@
 .git/*
 logs/*
 .remote-sync.json
+web/NotForGithub/*

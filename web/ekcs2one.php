@@ -21,10 +21,11 @@ and open the template in the editor.
 
 </head>
 <body>
-  <!-- anyone there?<br /> -->
   <?php
-  $username = "plamba@team.expresskcs.com";
-  $password = "eKCS*88042";
+  require('./NotForGithub/passwords.php');
+  $username = "one2editApiTest@team.expresskcs.com";
+  $password = passwordFor($username);
+  if ($password === FALSE) { debug(0, "failed to find password for $username."); exit(); }
   $workspaceId = "888";
   $baseURL = "https://demo.one2edit.com";
   $testURL = $baseURL."/Api.php";
@@ -92,13 +93,13 @@ and open the template in the editor.
     try {
       $sxml = new SimpleXMLElement($result);
       if (isset($sxml->code) and isset($sxml->message)) {
-        debug(0, "Server operation returned an error message. The server said:<br />");
-        debug(0, "code: ".$sxml->code.".<br />message: ".$sxml->message.".<br /><br />");
+        debug(0, "Server operation returned an error message. The server said:");
+        debug(0, "code: ".$sxml->code.".<br />message: ".$sxml->message.".<br />");
         return FALSE;
       }
       return $sxml;
     } catch (Exception $e) {
-      debug(0, "Error returned from server. The server said:$result.<br />");
+      debug(0, "Error returned from server. The server said:$result.");
       return FALSE;
     }
   }
@@ -119,7 +120,8 @@ and open the template in the editor.
       if (!isset($login->user->identifier)) { $missing .= "identifier "; }
     } else { $missing .= "login"; }
     if ($missing != "") {
-      debug(0,"Authorisation failed<br />");
+      debug(0,"Authorisation failed");
+      debug(0, "Missing: $missing");
       if ($sxml !== FALSE) { var_dump($sxml); }
       return FALSE;
     }
@@ -136,7 +138,8 @@ and open the template in the editor.
     $missing = "";
     if (!isset($sxml->folders->folder[0]->id)) { $missing .= "folder[0].id "; }
     if ($missing != "") {
-      debug(0,"Template folder search failed<br />");
+      debug(0,"Template folder search failed");
+      debug(0, "Missing: $missing");
       if ($sxml !== FALSE) { var_dump($sxml); }
       return FALSE;
     }
@@ -144,8 +147,9 @@ and open the template in the editor.
     return $sxml->folders->folder[0]->id;
   }
 
-  function debug($level, $message) {
+  function debug($level, $message="") {
     global $debugLevel;
+    if ($message == "") return ($debugLevel >= $level); // empty message just asks if debug level is high enough to print.
     if ($debugLevel >= $level) { echo($message."<br />"); }
   }
 
@@ -155,14 +159,50 @@ and open the template in the editor.
     $data = ["command"=>"template.list", "folderId"=>$folderId];
     foreach ($commonData as $k=>$v) { $data[$k] = $v; }
     $sxml = CallAPI("POST", $testURL, $data);
+    debug(3, "template.list API call returned:");
+    if (debug(3)) { var_dump($sxml); echo("<br />"); }
     $missing = "";
     if (!isset($sxml->templates->template[0]->id)) { $missing .= "template[0].id "; }
     if ($missing != "") {
-      debug(0,"Template search failed<br />");
+      debug(0,"Template search failed");
+      debug(0, "Missing: $missing");
       if ($sxml !== FALSE) { var_dump($sxml); }
       return FALSE;
     }
     return $sxml->templates->template[0]->id;
+  }
+
+  function findTemplateNamed($folderId, $nameWanted) {
+    global $testURL, $commonData;
+    debug(1, "Going to find template \"$nameWanted\" in folder $folderId.");
+    $data = ["command"=>"template.list", "folderId"=>$folderId];
+    foreach ($commonData as $k=>$v) { $data[$k] = $v; }
+    $sxml = CallAPI("POST", $testURL, $data);
+    debug(3, "template.list API call returned:");
+    if (debug(3)) { var_dump($sxml); echo("<br />"); }
+    $idToReturn = FALSE;
+    $missing = "";
+    if (!isset($sxml->templates->template[0])) { $missing .= "template[0] "; }
+    else {
+      $templates = $sxml->templates->template; // strange naming convention by one2edit
+      foreach ($templates as $template) {
+        debug(3, "Looking at template named \"$template->name\".");
+        if ((isset($template->name)) and ($template->name == $nameWanted)) {
+          if (!isset($template->id)) { $missing .= "$name.id "; }
+          else {
+            $idToReturn = $template->id;
+            debug(3, "findTemplateNamed \"$nameWanted\" is returning id $idToReturn.");
+          }
+        }
+      }
+    }
+    if ($missing != "") {
+      debug(0,"Template search failed.");
+      debug(0, "Missing: $missing");
+      if ($sxml !== FALSE) { var_dump($sxml); }
+      return FALSE;
+    }
+    return $idToReturn;
   }
 
   function startTemplateJob($templateId) {
@@ -174,7 +214,8 @@ and open the template in the editor.
     $missing = "";
     if (!isset($sxml->templates->template[0]->rubbish)) { $missing .= "template[0].id "; }
     if ($missing != "") {
-      debug(0,"Template start failed<br />");
+      debug(0,"Template start failed");
+      debug(0, "Missing: $missing");
       if ($sxml !== FALSE) { var_dump($sxml); }
       return FALSE;
     }
@@ -199,7 +240,7 @@ and open the template in the editor.
   if ($folderId === FALSE) { echo("folderId is FALSE"); exit(); }
   echo("<script>\nfolderId=\"$folderId\";\n</script>\n");
   debug(1,"template folderId: $folderId<br />");
-  $templateId = findAnyTemplate($folderId);
+  $templateId = findTemplateNamed($folderId, "testTemplate");
   if ($templateId === FALSE) {  exit; }
   debug(1, "Trying to edit template $templateId.");
   $jobId = startTemplateJob($templateId);
