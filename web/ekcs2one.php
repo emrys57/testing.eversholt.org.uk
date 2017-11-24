@@ -37,6 +37,7 @@ and open the template in the editor.
   $secretData = ["authUsername"=>$username, "authPassword"=>$password, "authDomain"=>$one2editDomain];
   $commonData = ["clientId"=>$workspaceId];
 
+
   // from https://stackoverflow.com/questions/9802788/call-a-rest-api-in-php
   // Method: POST, PUT, GET etc
   // Data: array("param" => "value") ==> index.php?param=value
@@ -129,7 +130,7 @@ and open the template in the editor.
     return $login;
   }
 
-  function aFolder() {
+  function aTemplateFolder() {
     global $testURL, $commonData;
     debug(1, "Trying to find folder now.");
     $data = ["command"=>"template.folder.list"];
@@ -212,14 +213,39 @@ and open the template in the editor.
     foreach ($commonData as $k=>$v) { $data[$k] = $v; }
     $sxml = CallAPI("POST", $testURL, $data);
     $missing = "";
-    if (!isset($sxml->templates->template[0]->rubbish)) { $missing .= "template[0].id "; }
+    if (!isset($sxml->template->jobs->job[0]->id)) { $missing .= "jobs[0].id "; }
     if ($missing != "") {
       debug(0,"Template start failed");
       debug(0, "Missing: $missing");
       if ($sxml !== FALSE) { var_dump($sxml); }
       return FALSE;
     }
-    return FALSE;
+    debug(3, "template.start API call returned:");
+    if (debug(3)) { var_dump($sxml); echo("<br />"); }
+    return $sxml->template->jobs->job[0]->id;
+  }
+
+  function findAnyJob() { // find any available task for this user
+    global $testURL, $commonData, $username;
+    debug(1, "Trying to find any job associated with user $username.");
+    // $data = ["command"=>"job.list"];
+    $data = ["command"=>"job.list", "status"=>"STARTED"];
+    foreach ($commonData as $k=>$v) { $data[$k] = $v; }
+    $sxml = CallAPI("POST", $testURL, $data);
+    $missing = "";
+    if (!isset($sxml->jobs->job[0]->id)) { $missing .= "job[0].id "; }
+    if ($missing != "") {
+      debug(0,"job.list failed");
+      debug(0, "Missing: $missing");
+      if ($sxml !== FALSE) { var_dump($sxml); echo("<br />"); }
+      return FALSE;
+    }
+    debug(3, "job.list API call returned:");
+    if (debug(3)) { var_dump($sxml); echo("<br />"); }
+    $job = $sxml->jobs->job[0];
+    debug(2, "job to be opened is:");
+    if (debug(2)) { var_dump($job); echo("<br />"); }
+    return $job->id;;
   }
 
   $login=doLogin($username, $password); // will return FALSE if anything is amiss
@@ -230,23 +256,31 @@ and open the template in the editor.
   echo("session=\"".$login->session."\"; name=\"".$login->user->name."\"; domain=\"".$login->user->domain."\"; id=\"".$login->user->id."\"; identifier=\"".$login->user->identifier."\";");
   echo("baseURL=\"$baseURL\"; workspaceID=\"$workspaceID\";");
   echo("</script>");
-  debug(1,"session: ".$login->session."<br />");
-  debug(1,"name: ".$login->user->name."<br />");
-  debug(1,"domain: ".$login->user->domain."<br />");
-  debug(1,"identifier: ".$login->user->identifier."<br />");
+  debug(1,"session: ".$login->session);
+  debug(1,"name: ".$login->user->name);
+  debug(1,"domain: ".$login->user->domain);
+  debug(1,"identifier: ".$login->user->identifier);
 
-  $folderId = aFolder();
-  debug(1, "aFolder returned ".$folderId);
+  $folderId = aTemplateFolder();
+  debug(1, "aTemplateFolder returned ".$folderId);
   if ($folderId === FALSE) { echo("folderId is FALSE"); exit(); }
   echo("<script>\nfolderId=\"$folderId\";\n</script>\n");
   debug(1,"template folderId: $folderId<br />");
-  $templateId = findTemplateNamed($folderId, "testTemplate");
+  $templateId = findTemplateNamed($folderId, "test2Template");
   if ($templateId === FALSE) {  exit; }
-  debug(1, "Trying to edit template $templateId.");
-  $jobId = startTemplateJob($templateId);
-  if ($jobId === FALSE) {  exit; }
+  $jobId = findAnyJob();
+  if ($jobId === FALSE) {
+    debug(0, "Failed to find any job to run, exiting.");
+    exit();
+    debug(0, "Failed to find any job to run, starting new one.");
+    debug(1, "Trying to edit template $templateId.");
+    $jobId = startTemplateJob($templateId);
+    if ($jobId === FALSE) {  exit; }
+  }
   debug(1, "Trying to run job $jobId.");
-  echo("<script>jobId=$jobId;\nworskspaceID=$workspaceId\n</script>");
+  // debug(0, "Quitting anyway.");
+  // exit();
+  echo("<script>jobId=$jobId;\nworkspaceID=$workspaceId\n</script>");
 
 
   debug(1,"<br />All done.<br />")
@@ -260,6 +294,14 @@ and open the template in the editor.
   <script type='text/javascript'>
   // Create a one2edit object with the desired attributes, flashvars, options  and parameters
   console.log("Going to edit job "+jobId+" in workspace "+workspaceID+" in session "+session);
+
+    // console.log("one2edit onCreationComplete:");
+    // alert("one2edit onCreationComplete:");
+  var myCreationComplete = function(){
+    console.log("one2edit: onCreationComplete:");
+    alert("one2edit: onCreationComplete");
+  };
+  // one2edit.options({onCreationComplete: myCreationComplete});
   one2edit.create({
     parameters: {
       wmode: 'opaque'
@@ -269,12 +311,14 @@ and open the template in the editor.
       sessionId: session,        // A sessionId is returned when we authenticate a user (see API example)
       clientId: workspaceID,                    // Id of our Client Workspace
       idleTimeout: 900,
+      // editor: {
+      //   documentId: 36 // car ad - attempt to edit a document without having a job.
+      // }
       jobEditor: {
         jobId: jobId               // A jobId is returned when we start a job template (see API example)
       }
     }
   });
   </script>
-  <!-- Anyone at all? -->
 </body>
 </html>
