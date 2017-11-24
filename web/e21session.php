@@ -10,6 +10,9 @@
 //
 // I think. Seems reasonable, anyway.
 
+// In fact, the flash editor refuses to work the second time. I have to log out and log in again to make the flash editor work.
+// although everything else seems fine.
+
 require('genericSession.php');
 require('./NotForGithub/passwords.php');
 require('eDebug.php');
