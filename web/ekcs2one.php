@@ -253,13 +253,13 @@ and open the template in the editor.
 
 
   echo("<script>");
-  echo("session=\"".$login->session."\"; name=\"".$login->user->name."\"; domain=\"".$login->user->domain."\"; id=\"".$login->user->id."\"; identifier=\"".$login->user->identifier."\";");
+  echo("session=\"".$login->session."\";");//" name=\"".$login->user->name."\"; domain=\"".$login->user->domain."\"; id=\"".$login->user->id."\"; identifier=\"".$login->user->identifier."\";");
   echo("baseURL=\"$baseURL\"; workspaceID=\"$workspaceID\";");
   echo("</script>");
   debug(1,"session: ".$login->session);
-  debug(1,"name: ".$login->user->name);
-  debug(1,"domain: ".$login->user->domain);
-  debug(1,"identifier: ".$login->user->identifier);
+  // debug(1,"name: ".$login->user->name);
+  // debug(1,"domain: ".$login->user->domain);
+  // debug(1,"identifier: ".$login->user->identifier);
 
   $folderId = aTemplateFolder();
   debug(1, "aTemplateFolder returned ".$folderId);
@@ -293,7 +293,7 @@ and open the template in the editor.
 
   <script type='text/javascript'>
   // Create a one2edit object with the desired attributes, flashvars, options  and parameters
-  console.log("Going to edit job "+jobId+" in workspace "+workspaceID+" in session "+session);
+  console.log("Going to edit job "+jobId+" in workspace "+workspaceID+" in session "+session+" at baseURL "+baseURL);
 
     // console.log("one2edit onCreationComplete:");
     // alert("one2edit onCreationComplete:");
@@ -302,23 +302,24 @@ and open the template in the editor.
     alert("one2edit: onCreationComplete");
   };
   // one2edit.options({onCreationComplete: myCreationComplete});
-  one2edit.create({
-    parameters: {
-      wmode: 'opaque'
-    },
-    flashvars: {
-      server: baseURL,
-      sessionId: session,        // A sessionId is returned when we authenticate a user (see API example)
-      clientId: workspaceID,                    // Id of our Client Workspace
-      idleTimeout: 900,
-      // editor: {
-      //   documentId: 36 // car ad - attempt to edit a document without having a job.
-      // }
-      jobEditor: {
-        jobId: jobId               // A jobId is returned when we start a job template (see API example)
-      }
+  pp = {
+    wmode: 'opaque'
+  }
+  fp = {
+    server: baseURL,
+    sessionId: session,        // A sessionId is returned when we authenticate a user (see API example)
+    clientId: workspaceID,                    // Id of our Client Workspace
+    idleTimeout: 900,
+    jobEditor: {
+      jobId: jobId               // A jobId is returned when we start a job template (see API example)
     }
-  });
+  }
+  ap = {
+    parameters: pp,
+    flashvars: fp
+    }
+    console.log('ap: '+JSON.stringify(ap,null,4));
+  one2edit.create(ap);
   </script>
 </body>
 </html>

@@ -17,9 +17,9 @@ require('eDebug.php');
 class One2editTalker {
 
   private $one2editAuthUsername; // the authUsername used to log in to one2edit
-  private $eSession; // the instance of the Session object retaining the state of the user's session with this EKCS server
-  private $one2editServerBaseUrl = 'https://demo.one2edit.com';
-  public $pv = 'pardon?';
+  public $eSession; // the instance of the Session object retaining the state of the user's session with this EKCS server
+  public $one2editServerBaseUrl = 'https://demo.one2edit.com';
+  public $one2editWorkspaceId = FALSE;
 
   function __construct() { // bizarre php scheme for constructors with parameters - http://php.net/manual/en/language.oop5.decon.php
     $a = func_get_args();
@@ -32,30 +32,18 @@ class One2editTalker {
   function __construct1($username) {
     // echo('construct1: trying $username.<br />');
     $this->one2editAuthUsername = e21Username($username);
+    $this->one2editWorkspaceId = one2editWorkspaceId($this->one2editAuthUsername); // default workspace Id, may be changed later
     $this->eSession = Session::getInstance(); // the session between the user's browser and this EKCS server. Session is created if not already present.
-    if (!isset($this->eSession->one2editAuthUsername)) { // No one2edit session has been set up at all
-      debug(2, 'One2editTalker: no edit session set up at all');
-      $this->login(); // so try to set one up
-      return; // and get out whether or not we have succeeded
-    }
-    // is it possible to get the username changing in a session?
-    // Perhaps.
-    if ($this->one2editAuthUsername != $this->eSession->one2editAuthUsername) {
-      debug(1, 'One2editTalker: edit session set up with wrong name '.$eSession->one2editAuthUsername.' instead of '.$this->one2editAuthUsername.'.');
-      $this->eSession->destroy();
-      $this->eSession = Session::getInstance();
-      $this->login();
-      return; // and get out whether or not we have succeeded
-    }
-    // here, we already had a username in the exsiting session, and it was equal to the user we're trying to be now, so must have set up a one2edit sessionid.
-    // Is that sessionId still usable? Or has it timed out?
+    //
     debug(2, 'One2editTalker: trying to ping session '.$eSession->sessionId);
     $data =['command'=>'user.session.ping'];
-    $sxml = $this->talk($data, 'POST', '3005'); // if ping worked, this is an empty object. If ping failed, this is FALSE. Don't print error message for code 3005, no session.
+    $sxml = $this->talk($data); // if ping worked, this is an empty object. If ping failed, this will try to log in with username and password, and retry the ping.
+    // if it is still FALSE, cannot log in.
     if (debug(3)) { var_dump($sxml); echo ('<br />'); }
     if ($sxml === FALSE) {
-      debug(2,'One2editTalker: ping returned false, trying login');
-      $this->login();
+      debug(2,'One2editTalker: ping returned false, exit');
+      exit();
+      // $this->login();
     }
     debug(2, 'One2editTalker: built One2editTalker');
   }
@@ -92,9 +80,17 @@ class One2editTalker {
     return TRUE;
   }
 
-  public function talk($data, $method='POST', $allowedCode=FALSE) { // call the one2edit API with parameters $data. return a simpleXML object or FALSE
+  public function talk($data, $method='POST', $mayRecurse=TRUE) { // call the one2edit API with parameters $data. return a simpleXML object or FALSE
+    // if the server responds with a session-not-started code, then call login and try again - but only once
+    $sessionNotStartedCode = 3005;
     $url = $this->one2editServerBaseUrl.'/Api.php';
-    if (isset($this->eSession->sessionId)) { $data['sessionId'] = $this->eSession->sessionId; }
+    if (isset($data['command']) and ($data['command'] == 'user.auth')) { // do not add sessionId or workspace
+    } else {
+      if (isset($this->eSession->sessionId)) {
+        $data['sessionId'] = $this->eSession->sessionId;
+        $data['clientId'] = $this->one2editWorkspaceId;
+      }
+    }
     $s = "curl $method to $url:<br />";
     foreach($data as $k=>$v) {
       if ($k == 'password') { $v = '*******'; }
@@ -129,10 +125,14 @@ class One2editTalker {
     try {
       $sxml = new SimpleXMLElement($result);
       if (isset($sxml->code) and isset($sxml->message)) {
-        if ($sxml->code != $allowedCode) { // then we want to print an error message
-          debug(0, 'Server operation returned an error message. The server said:');
-          debug(0, 'code: '.$sxml->code.'.<br />message: '.$sxml->message.'.<br />');
+        if (($sxml->code == $sessionNotStartedCode) and ($mayRecurse)) {
+          debug(2, 'one2edit server returned code 3005, session not started. Trying login.');
+          $this->login();
+          debug(2, 'retrying original command after login');
+          return $this->talk($data, $method, FALSE); // $data entries will be overwritten by new ones.
         }
+        debug(0, 'Server operation returned an error message. The server said:');
+        debug(0, 'code: '.$sxml->code.'.<br />message: '.$sxml->message.'.<br />');
         return FALSE;
       }
       return json_decode(json_encode($sxml), TRUE); // return array not object
@@ -140,6 +140,22 @@ class One2editTalker {
       debug(0, 'Error returned from server. The server said:$result.');
       return FALSE;
     }
+  }
+
+  public function findTopJob() { // find first STARTED job for this user
+    $data = ['command'=>'job.list', 'status'=>'STARTED'];
+    $xml = $this->talk($data);
+    if (debug(3)) { var_dump($xml); echo('<br />'); }
+    $s = 'job listing failed';
+    $jobs = $this->need($xml, 'jobs', $s);
+    $job = $this->need($jobs, 'job', $s);
+    if (isset($job[0]['id'])) { return $job[0]['id']; }
+    return $this->need('job[0]->id'); // which will be false, but will give reasonable error message. i hope.
+  }
+
+  public function logout() {
+    $data = ['command'=>'user.session.quit'];
+    $this->talk($data);
   }
 }
   ?>
