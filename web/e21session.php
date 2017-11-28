@@ -42,9 +42,9 @@ class One2editTalker {
     $data =['command'=>'user.session.ping'];
     $sxml = $this->talk($data); // if ping worked, this is an empty object. If ping failed, this will try to log in with username and password, and retry the ping.
     // if it is still FALSE, cannot log in.
-    if (debug(3)) { var_dump($sxml); echo ('<br />'); }
+    if (debug(3)) { echo('One2editTalker: talk() returned:<br />'); var_dump($sxml); echo ('<br />'); }
     if ($sxml === FALSE) {
-      debug(2,'One2editTalker: ping returned false, exit');
+      debug(1,'One2editTalker: ping returned false, exit');
       exit();
       // $this->login();
     }
@@ -86,6 +86,7 @@ class One2editTalker {
   public function talk($data, $method='POST', $mayRecurse=TRUE) { // call the one2edit API with parameters $data. return a simpleXML object or FALSE
     // if the server responds with a session-not-started code, then call login and try again - but only once
     $sessionNotStartedCode = 3005;
+    $attributesMissingCode = 13104; // "Missing required attribute 'sessionId' or 'authUsername and 'authPassword". Can happen after much inactivity.
     $url = $this->one2editServerBaseUrl.'/Api.php';
     if (isset($data['command']) and ($data['command'] == 'user.auth')) { // do not add sessionId or workspace
     } else {
@@ -128,7 +129,7 @@ class One2editTalker {
     try {
       $sxml = new SimpleXMLElement($result);
       if (isset($sxml->code) and isset($sxml->message)) {
-        if (($sxml->code == $sessionNotStartedCode) and ($mayRecurse)) {
+        if (($sxml->code == $sessionNotStartedCode) || ($sxml->code == $attributesMissingCode) and ($mayRecurse)) {
           debug(2, 'one2edit server returned code 3005, session not started. Trying login.');
           $this->login();
           debug(2, 'retrying original command after login');
@@ -151,8 +152,15 @@ class One2editTalker {
     if (debug(3)) { var_dump($xml); echo('<br />'); }
     $s = 'job listing failed';
     $jobs = $this->need($xml, 'jobs', $s);
+    if (is_array($jobs) and (count($jobs) == 0)) { debug(0, "No jobs to do."); return FALSE; }
     $job = $this->need($jobs, 'job', $s);
-    if (isset($job[0]['id'])) { return $job[0]['id']; }
+    // Confusingly, the type of 'job' changes from 'indexed-array-of-jobs' to
+    // 'associative array of descriptors of one job' when there is only one job.
+    // Just fix it.
+    if (!is_array($job)) { debug(1, 'Type of $job returned from one2edit server is '.gettype($job).', expected array.<br />'); return FALSE; }
+    if (has_string_keys($job)) { $job0 = $job; } // there is only one job and this is it.
+    else { $job0 = $job[0]; } // there are multiple jobs and this is the first one
+    if (isset($job0['id'])) { return $job0['id']; }
     return $this->need('job[0]->id'); // which will be false, but will give reasonable error message. i hope.
   }
 

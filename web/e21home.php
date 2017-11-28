@@ -1,3 +1,11 @@
+<?php
+
+// log in to one2edit and display the one2edit home screen. On logout, close the window.
+
+
+
+?>
+
 <html>
 <head>
   <title>One2Edit API test</title>
@@ -14,38 +22,22 @@
   $t = new One2editTalker($username); // does one2edit login if needed, reuses existing session if one exists.
 
   // NOTE that above code must be run before anything else is sent to the browser. Should it be above <html>?
-  ?>
 
+  exportToJavascript('session', $t->eSession->sessionId);
+  exportToJavascript('baseURL', $t->one2editServerBaseUrl);
+  exportToJavascript('workspaceId', $t->one2editWorkspaceId);
+  ?>
 
   <style>
   .one2edit {
     width:940px;
     height:500px;
-    background-color: red;
+    background-color: light grey;
   }
   </style>
 
 </head>
 <body>
-  <?php
-  if (isset($_GET['logout'])) {
-    $t->logout();
-    debug(0, "Logged out.");
-    exit();
-  }
-  echo("<script>\n");
-  echo("session=\"".$t->eSession->sessionId."\"; \n");
-  echo("baseURL=\"".$t->one2editServerBaseUrl."\";\n");
-  echo("</script>\n");
-  $jobId = $t->findTopJob();
-  if ($jobId === FALSE) { exit(); }
-  $workspaceId = $t->one2editWorkspaceId;
-  echo("<script>jobId=$jobId;\nworkspaceID=$workspaceId\n</script>");
-  echo("<script>jobId=$jobId;</script>\n"); // jobId is integer not string
-  debug(0,"Top job is $jobId.");
-
-  echo('All done.<br />');
-  ?>
 
   <div class="one2edit">
     <!-- Without this div with 'flashContent' as id the swf object can't be placed -->
@@ -53,9 +45,11 @@
   </div>
 
   <script type='text/javascript'>
+  // for any page where you have a flash one2edit window open, you have to log out on leaving
+  // or you cannot get back in until the session times out.
+  $(window).on('beforeunload', function(){ one2edit.logout(); })
   $(document).ready(function(){
     // Create a one2edit object with the desired attributes, flashvars, options  and parameters
-    console.log("Going to edit job "+jobId+" in workspace "+workspaceID+" in session "+session+" baseURL: "+baseURL);
 
     var ap = {
       options: {
@@ -74,11 +68,11 @@
         flashvars: {
           server: baseURL,
           sessionId: session,        // A sessionId is returned when we authenticate a user (see API example)
-          clientId: workspaceID,                    // Id of our Client Workspace
+          clientId: workspaceId,                    // Id of our Client Workspace
           idleTimeout: 900,
-          jobEditor: {
-            jobId: jobId               // A jobId is returned when we start a job template (see API example)
-          }
+          // jobEditor: {
+          //   jobId: jobId               // A jobId is returned when we start a job template (see API example)
+          // }
         }
       }
       console.log('ap: '+JSON.stringify(ap,null,4)); // just do it like this for debug output. Does not show functions.
