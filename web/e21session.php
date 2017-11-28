@@ -33,13 +33,24 @@ class One2editTalker {
   }
 
   function __construct1($username) {
+    __construct2($username, FALSE);
+  }
+
+  function __construct2($username, $alwaysLogin) {
     // echo('construct1: trying $username.<br />');
     $this->one2editAuthUsername = e21Username($username);
     $this->one2editWorkspaceId = one2editWorkspaceId($this->one2editAuthUsername); // default workspace Id, may be changed later
-    $this->eSession = Session::getInstance(); // the session between the user's browser and this EKCS server. Session is created if not already present.
+    if ($alwaysLogin) { // then we do _not_ keep a persistent MediaFerry session, so will always have to log in again
+      $this->eSession = new stdClass();
+    } else { // we store the details of the one2edit server session in a persistent MediaFerry session
+      $this->eSession = Session::getInstance(); // the session between the user's browser and this EKCS server. Session is created if not already present.
+    }
     //
-    debug(2, 'One2editTalker: trying to ping session '.$eSession->sessionId);
+    if (isset($this->$eSession->sessionId)) { $mySessionId = $this->$eSession->sessionId; }
+    else { $mySessionId = 'UNDEFINED'; }
+    debug(2, 'One2editTalker: trying to ping session: '.$mySessionId);
     $data =['command'=>'user.session.ping'];
+    // If session is undefined, this will always fail first time and cause a new login to be done
     $sxml = $this->talk($data); // if ping worked, this is an empty object. If ping failed, this will try to log in with username and password, and retry the ping.
     // if it is still FALSE, cannot log in.
     if (debug(3)) { echo('One2editTalker: talk() returned:<br />'); var_dump($sxml); echo ('<br />'); }

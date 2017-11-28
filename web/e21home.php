@@ -19,7 +19,8 @@
 
   require('e21session.php');
   $username = "one2editApiTest@team.expresskcs.com";
-  $t = new One2editTalker($username); // does one2edit login if needed, reuses existing session if one exists.
+  $t = new One2editTalker($username, TRUE); // does one2edit login always, even if a session exists elsewhere.
+  // Have to make sure to logout when leaving this page, or run out of one2edit licences!
 
   // NOTE that above code must be run before anything else is sent to the browser. Should it be above <html>?
 
@@ -30,9 +31,9 @@
 
   <style>
   .one2edit {
-    width:940px;
-    height:500px;
-    background-color: light grey;
+    width:100%;
+    height:100vh;
+    background-color: #e6ffff;
   }
   </style>
 
@@ -41,12 +42,15 @@
 
   <div class="one2edit">
     <!-- Without this div with 'flashContent' as id the swf object can't be placed -->
-    <div id="flashContent"> </div>
+    <div id="flashContent">
+      Flash Content will load here.
+    </div>
   </div>
 
   <script type='text/javascript'>
-  // for any page where you have a flash one2edit window open, you have to log out on leaving
-  // or you cannot get back in until the session times out.
+
+  // Because we always create a new one2edit session for this page, we always have to log it out as we leave.
+  // We need a new one2edit session because reusing them does not work for flash display.
   $(window).on('beforeunload', function(){ one2edit.logout(); })
   $(document).ready(function(){
     // Create a one2edit object with the desired attributes, flashvars, options  and parameters
