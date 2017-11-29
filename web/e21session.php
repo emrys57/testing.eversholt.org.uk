@@ -22,6 +22,7 @@ class One2editTalker {
   private $one2editAuthUsername; // the authUsername used to log in to one2edit
   public $eSession; // the instance of the Session object retaining the state of the user's session with this EKCS server
   public $one2editServerBaseUrl = 'https://demo.one2edit.com';
+  public $one2editServerApiUrl;
   public $one2editWorkspaceId = FALSE;
 
   function __construct() { // bizarre php scheme for constructors with parameters - http://php.net/manual/en/language.oop5.decon.php
@@ -40,6 +41,7 @@ class One2editTalker {
     // echo('construct1: trying $username.<br />');
     $this->one2editAuthUsername = e21Username($username);
     $this->one2editWorkspaceId = one2editWorkspaceId($this->one2editAuthUsername); // default workspace Id, may be changed later
+    $this->one2editServerApiUrl = $this->one2editServerBaseUrl.'/Api.php';
     if ($alwaysLogin) { // then we do _not_ keep a persistent MediaFerry session, so will always have to log in again
       $this->eSession = new stdClass();
     } else { // we store the details of the one2edit server session in a persistent MediaFerry session
@@ -98,7 +100,7 @@ class One2editTalker {
     // if the server responds with a session-not-started code, then call login and try again - but only once
     $sessionNotStartedCode = 3005;
     $attributesMissingCode = 13104; // "Missing required attribute 'sessionId' or 'authUsername and 'authPassword". Can happen after much inactivity.
-    $url = $this->one2editServerBaseUrl.'/Api.php';
+    $url = $this->one2editServerApiUrl;
     if (isset($data['command']) and ($data['command'] == 'user.auth')) { // do not add sessionId or workspace
     } else {
       if (isset($this->eSession->sessionId)) {
