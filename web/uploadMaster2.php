@@ -9,6 +9,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script type="text/javascript" src="https://demo.one2edit.com/scripts/one2edit.js"></script>
   <script src="https://code.jquery.com/jquery-3.2.1.js"></script>
+  <script src="dismiss.js"></script>
   <?php
 
   // NO echo() here - session is starting
@@ -19,6 +20,9 @@
 
   // NOTE that above code must be run before anything else is sent to the browser. Should it be above <html>?
 
+  $wantOpenEditor = filter_input(INPUT_GET, "open", FILTER_VALIDATE_BOOLEAN, array("flags" => FILTER_NULL_ON_FAILURE)) ? 1 : 0; // https://stackoverflow.com/questions/3384942/true-in-get-variables#3384973
+
+  exportToJavascript('wantOpenEditor', $wantOpenEditor);
   exportToJavascript('baseURL', $t->one2editServerBaseUrl);
   exportToJavascript('apiUrl', $t->one2editServerApiUrl);
   exportToJavascript('sessionId', $t->eSession->sessionId); // this is the one2edit session ID between MediaFerry server and one2edit server
@@ -38,15 +42,65 @@
     height:100vh; /* I have seen a bug with this in Safari - screen taller than the window - but that's safari. */
     background-color: #e6ffff; /* Different colour so that we can see if the Flash plugin has been launched. */
   }
+  .progress, .success, .errorReturned {
+    display: none; /* the progress announcements are hidden to start with, revealed with slideDown() */
+  }
+  .alertBox {
+    display: none;
+    background-color: #ef7f93;
+    border-radius: 0.5em;
+    border-color: black;
+    border-width: 1px;
+  }
   </style>
 
 </head>
 <body>
+  <div id='textDiv'>
+    <h2>Upload an InDesign Package to be used as a new master document</h2>
+    First, create a folder holding everything with InDesign - File - Package.
+    Then compress that folder and its files into a zip archive.
+    Then upload that zip archive.
 
-  <h2>Upload an InDesign Package to be used as a new master document</h2>
-  First, create a folder holding everything with InDesign - File - Package.
-  Then compress that folder and its files into a zip archive.
-  Then upload that zip archive.
+    <!--  This form here triggers off all the javascript above. Not entirely sure how! -->
+    <form method="post" id="fileUploadForm" name="fileinfo" onsubmit="return submitForm();">
+      <label>Select Zip Archive File :</label><br />
+      <input type="file" name="data" accept=".zip" required />
+      <input type="submit" value="Upload Zip File" />
+    </form>
+    <!-- This code here, which is all initially hidden, displays the progress of the operation. -->
+    <div id='display'>
+      <div class='uploading progress'>
+        <div>Uploading File:</div>
+        <div class='errorReturned'> Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
+        <div class='success'> Success! </div>
+      </div>
+      <div class='unzipping progress'>
+        <div>Unzipping Archive File at Server:</div>
+        <div class='errorReturned'> Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
+        <div class='success'> Success! </div>
+      </div>
+      <div class='createProject progress'>
+        <div>Creating Project at Server:</div>
+        <div class='errorReturned'> Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
+        <div class='success'> Success! </div>
+      </div>
+      <div class='populateContentGroup progress'>
+        <div>Populate Content Group at Server:</div>
+        <div class='errorReturned'> Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
+        <div class='success'> Success! </div>
+        <div class='noEditableContent progress'>NO EDITABLE CONTENT☹️</div>
+      </div>
+      <div class='moveItemsToContentGroup progress'>
+        <div>Moving Items to Editable Content Group at Server:</div>
+        <div class='errorReturned'> Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
+        <div class='success'> Success! </div>
+      </div>
+    </div>
+  </div>
+  <div id='flashDiv' class='one2edit' style='display:none'>
+    <div id="flashContent"> </div>
+  </div>
 
   <?php
   // Find the Project Folder '/UploadedMasters'
@@ -63,7 +117,7 @@
       $uploadedMastersFolderId = $folder['id'];
     }
   }
-  echo('Found UploadedMasters Project Folder id='.$uploadedMastersFolderId.'<br />');
+  // echo('Found UploadedMasters Project Folder id='.$uploadedMastersFolderId.'<br />');
 
   // For the one2edit asset space, we don't need to find the folder ID, because the API uses folder names.
   // We upload all zip files to /UploadedPackages in the asset space, and unzip them there.
@@ -74,13 +128,17 @@
   // Can there be multiple asset spaces in one workspace? If so, the below would fail.
   if (!isset($serverResponse['assets']['asset']['project'])) { debug(1, 'Cannot find any asset project.'); exit(); }
   $assetProject = $serverResponse['assets']['asset']['project'];
-  echo("Found asset project number: $assetProject<br />");
+  // echo("Found asset project number: $assetProject<br />");
 
   exportToJavascript('uploadedMastersFolderId', $uploadedMastersFolderId);
   exportToJavascript('projectId', $assetProject);
   ?>
 
   <script type="text/javascript">
+
+  function logoutFromServer() { callServer({ command: 'user.session.quit' }, undefined, '#logout'); }
+
+  $(window).on('beforeunload', function(){ logoutFromServer(); }) // Must logout on leaving this page or we'll run out of one2edit licences.
 
   // All this javascript is triggered when someone hits <submit> on the file upload form in html below.
 
@@ -100,7 +158,7 @@
     fd.append("clientId", clientId);
     fd.append("command", "asset.upload");
     fd.append("projectId", projectId);
-    fd.append("folderIdentifier", "/");
+    fd.append("folderIdentifier", "/UploadedPackages");
     $.ajax({
       url: apiUrl,
       type: "POST",
@@ -155,6 +213,7 @@
     // callServer autoamtically adds the sessionId and workspaceId to data.
 
     // TODO: There is no error handling function for the ajax call, so if the network is broken, ...?
+    if (typeof $display == 'undefined') { $display = $('#display'); } // in case we do logout before submitting form
     $displaySection =$display.find(displaySection); // this is the bit of the html we will be displaying progress in
     $displaySection.slideDown(); // display what we're just about to do.
     var myData = {
@@ -246,7 +305,8 @@
     callServer({
       command:'document.link',
       assetProjectId: projectId,
-      assetIdentifier: assetIdentifier
+      assetIdentifier: assetIdentifier,
+      folderId: uploadedMastersFolderId // where to create the new document
     }, function(xml){
       console.log('doCreateProject: success: ', xml);
       doAddContentGroup($(xml));
@@ -308,44 +368,37 @@
       };
       callServer(serverData, function($xml){
         console.log('moveItemsToContentGroup: serverData: ', serverData, 'responseXml:', $xml[0]);
+        if (wantOpenEditor) { editDocument(documentId); }
         return; // all done
       }, '.moveItemsToContentGroup');
     }, '.populateContentGroup');
   }
 
-
+  function editDocument(documentId) {
+    $('#textDiv').hide();
+    $('#flashDiv').show();
+    var ap = {
+      options: { onLogout: function() { $(".one2edit").slideUp(); } },
+      parameters: { wmode: 'opaque' },
+      flashvars: {
+        server: baseURL,
+        sessionId: sessionId,        // A sessionId is returned when we authenticate a user (see API example)
+        clientId: clientId,                    // Id of our Client Workspace
+        idleTimeout: 900,
+        editor: {
+          closeBehavior: one2edit.editor.CLOSE_BEHAVIOR_LOGOUT,
+          documentId: documentId
+        }
+        // jobEditor: {
+        //   jobId: jobId               // A jobId is returned when we start a job template (see API example)
+        // }
+      }
+    }
+    console.log('openTemplateJob: ap: '+JSON.stringify(ap,null,4)); // just do it like this for debug output. Does not show functions.
+    one2edit.create(ap);
+  }
   </script>
 
-  <!--  This form here triggers off all the javascript above. Not entirely sure how! -->
-  <form method="post" id="fileUploadForm" name="fileinfo" onsubmit="return submitForm();">
-    <label>Select Zip Archive File :</label><br />
-    <input type="file" name="data" required />
-    <input type="submit" value="Upload Zip File" />
-  </form>
-  <!-- This code here, which is all initially hidden, displays the progress of the operation. -->
-  <!-- I'm not sure the 'float left' does any good at all. My css is very rusty :-( -->
-  <div id='display'>
-    <div class='uploading' style='display:none;'>
-      <div style='float; left'>Uploading File:</div> <div class='errorReturned' style='display:none;'> Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
-      <div class='success' style='display:none;'> Success! </div>
-    </div>
-    <div class='unzipping' style='display:none;'>
-      <div style='float; left'>Unzipping Archive File at Server:</div> <div class='errorReturned' style='display:none;'> Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
-      <div class='success' style='display:none;'> Success! </div>
-    </div>
-    <div class='createProject' style='display:none;'>
-      <div style='float; left'>Creating Project at Server:</div> <div class='errorReturned' style='display:none;'> Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
-      <div class='success' style='display:none;'> Success! </div>
-    </div>
-    <div class='populateContentGroup' style='display:none;'>
-      <div style='float; left'>Populate Content Group at Server:</div> <div class='errorReturned' style='display:none;'> Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
-      <div class='success' style='display:none;'> Success! </div>
-      <div class='noEditableContent' style='display:none;'>NO EDITABLE CONTENT☹️</div>
-    </div>
-    <div class='moveItemsToContentGroup' style='display:none;'>
-      <div style='float; left'>Moving Items to Editable Content Group at Server:</div> <div class='errorReturned' style='display:none;'> Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
-      <div class='success' style='display:none;'> Success! </div>
-    </div>
-  </div>
+
 </body>
 </html>
