@@ -14,6 +14,7 @@ function debug($level, $message="") {
 
 // from https://stackoverflow.com/questions/173400/how-to-check-if-php-array-is-associative-or-sequential/4254008#4254008
 function has_string_keys(array $array) {
+  if (!is_array($array)) { return FALSE; } // if it is not an array then it does not have string keys.
   return count(array_filter(array_keys($array), 'is_string')) > 0;
 }
 
