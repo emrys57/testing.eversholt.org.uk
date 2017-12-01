@@ -154,6 +154,15 @@
   var zipFileIdentifier; // asset pathname from server
   var $display; // html where we put notices, not defined yet
 
+  var callSequence0 = [
+    doUnzipAtServer,
+    doSearchForInddFile,
+    doCreateProject,
+    doAddContentGroup,
+    doPopulateContentGroup
+  ];
+
+  if (wantOpenEditor) { callSequence0.push(editDocument); }
 
   // https://stackoverflow.com/questions/2320069/jquery-ajax-file-upload
   // This uploads the file. Change this to give a progress bar on upload and drag-and-drop fucntionality.
@@ -192,7 +201,7 @@
         }
         $uploading.find('.success').slideDown();
         zipFileIdentifier = $xml.find('identifier').text();
-        doUnzipAtServer($xml);
+        passOn($xml, callSequence0);
       }
     });
     return false;
@@ -203,8 +212,10 @@
   // It's just rather scruffy to have both javascript and php handle the one2edit API.
   // I wish I had a library to handle these APIs direct from the API definitions.
 
-  function doUnzipAtServer($xml) {
+  function doUnzipAtServer($xml, callSequence) {
     // $xml is the result of the asset.upload API call.
+    // If callSequence is present, it's an array of functions. If the callServer here succeeds, the top function is removed, called and the remaining callSequence passed on.
+    // It's a way of building a sequence of API calls which complete asynchronously.
     var zipFileIdentifier = $xml.find('identifier').text();
     callServer({
       command: 'asset.extract',
@@ -213,8 +224,21 @@
       remove: true // we definitely want to remove the zip file
     }, function($xml){
       console.log('doUnzipAtServer: success: xml:', $xml[0]);
-      doSearchForInddFile($xml);
+      passOn($xml, callSequence);
     }, '.unzipping');
+  }
+
+  function passOn($xml, callSequence) {
+    // pass on the $xml to the next function in the sequence, if such a function exists
+    if ($.isArray(callSequence) && (typeof callSequence[0] == 'function')) {
+      var l1 = callSequence.length;
+      var topFunction = callSequence.shift(); // pops first entry and returns it
+        var l2 = callSequence.length;
+        var fs = '';
+        callSequence.forEach(function(f) { fs+=','+f.name; });
+      console.log('passOn: ', $xml[0], '; to: ', topFunction.name, '; sequence after pop: ', fs, ' l1:', l1, ' l2:', l2);
+      topFunction($xml, callSequence);
+    } else { console.log('No more to do in sequence, finished.'); }
   }
 
   function callServer(data, realSuccess, displaySection) {
@@ -256,17 +280,17 @@
     })
   }
 
-  function doSearchForInddFile($xml) {
+  function doSearchForInddFile($xml, callSequence) {
     // $xml is the result of the 'asset.extract' call
     var folderIdentifier = $xml.find('identifier').text();
     // Hunt down the .indd file within the folders created by unzipping.
     // Have a separate function for the search because that function uses folder identifiers recursively, not the xml result.
-    searchForInddFile(folderIdentifier);
+    searchForInddFile(folderIdentifier, callSequence);
   }
 
   var foundInddFile = false; // global, first descendant to find file sets it for all
 
-  function searchForInddFile(folderIdentifier) {
+  function searchForInddFile(folderIdentifier, callSequence) {
     // 'folderIdentifier' is a complete file path in the asset space
     // find the files and folders in that folder.
     callServerData = {
@@ -288,7 +312,7 @@
         if (type != 'file') { return true; } // same as 'continue'
         if (name.match(/\.indd$/i) != null) { // use this in case the extension contains upper case. Look for any .indd file
           foundInddFile = true;
-          doCreateProject($asset); // pass specific subset of original xml data as a jQuery object
+          passOn($asset, callSequence); // NOTE, $asset, not $xml
           return false; // same as 'break'
         }
       });
@@ -303,13 +327,13 @@
         if (type != 'folder') { return true; } // same as 'continue'
         var newFolderIdentifier = $asset.find('identifier').text();
         console.log('searchForInddFile: each folder: ', newFolderIdentifier, ': ', type);
-        searchForInddFile(newFolderIdentifier);
+        searchForInddFile(newFolderIdentifier, callSequence);
         if (foundInddFile) { return false; } // same as break
       })
     }, '.searchForInddFile');
   }
 
-  function doCreateProject($xml) {
+  function doCreateProject($xml, callSequence) {
     // transform the InDesign file in the asset space into an editable project in the one2edit document space.
     // $xml is the result of 'asset.list' and contains just the asset we want to convert.
     var assetIdentifier = $xml.find('identifier').text();
@@ -321,11 +345,11 @@
       folderId: uploadedMastersFolderId // where to create the new document
     }, function($xml){
       console.log('doCreateProject: success: ', $xml[0]);
-      doAddContentGroup($xml);
+      passOn($xml, callSequence);
     }, '.createProject');
   }
 
-  function doAddContentGroup($xml) {
+  function doAddContentGroup($xml, callSequence) {
     // Add the 'Editable Content Group' which is the expected one for our workflows
     // if the group already exists (somehow) we get a code-4004 error, which we can ignore.
     // Except we don't yet, which is a mssing feature. Have to allow it in callServer.
@@ -339,11 +363,11 @@
       name: 'Editable Content Group'
     }, function($xml) {
       $xml.find('success').append($document);
-      doPopulateContentGroup($xml);
+      passOn($xml, callSequence); // $xml is both returned data and document
     }, '.addContentGroup');
   }
 
-  function doPopulateContentGroup($xmlWithDocument) {
+  function doPopulateContentGroup($xmlWithDocument, callSequence) {
     // Move any content from an editable layer to the Editable Content Group just created.
     // '$xml' contains the response to a 'document.group.add' API call, plus the document xml.
     $success = $xmlWithDocument.find('success');
@@ -382,19 +406,21 @@
       };
       callServer(serverData, function($xml){
         console.log('moveItemsToContentGroup: serverData: ', serverData, 'responseXml:', $xml[0]);
-        if (wantOpenEditor) { editDocument($xmlWithDocument); } // note, not $xml returned from callServer
-        return; // all done
+        passOn($xmlWithDocument, callSequence); // NOTE, not xml returned from callServer
       }, '.moveItemsToContentGroup');
     }, '.populateContentGroup');
   }
 
-  function editDocument($xmlWithDocument) {
+  function editDocument($xmlWithDocument, callSequence) {
     var documentId = $xmlWithDocument.find('success').children('document').children('id').text();
     console.log('editDocument: documentId: ', documentId);
     $('#textDiv').hide();
     $('#flashDiv').show();
     var ap = {
-      options: { onLogout: function() { $(".one2edit").slideUp(); } },
+      options: { onLogout: function() {
+        $(".one2edit").slideUp(function(){ passOn($xmlWithDocument, callSequence); });
+         // perhaps do something else after closing editor and sliding window up is finished
+      } },
       parameters: { wmode: 'opaque' },
       flashvars: {
         server: baseURL,
@@ -414,13 +440,7 @@
     one2edit.create(ap);
   }
 
-  var callSequence0 = [
-    doUnzipAtServer,
-    doSearchForInddFile,
-    doCreateProject,
-    doAddContentGroup,
-    doPopulateContentGroup
-  ]
+
   </script>
 
 
