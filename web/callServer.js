@@ -11,7 +11,7 @@ var L$ = (function(my) {
   // Shift-reload in firefox works, does not show this bug.
   // Very very weird.
 
-  var $display = $(document); // where callServer etc looks for progress elements to show
+  var $display = $(document); // where callServer etc looks for progress elements to show. Refined later.
 
   my.$display = function($a) { // set or get the $display variable
     if (typeof $a != 'undefined') { $display = $a; }
@@ -19,7 +19,7 @@ var L$ = (function(my) {
   }
 
   // https://stackoverflow.com/questions/2320069/jquery-ajax-file-upload
-  // This uploads a file. Change this to give a progress bar on upload and drag-and-drop fucntionality.
+  // This uploads a file. Change this to give a progress bar on upload and drag-and-drop functionality.
   my.submitForm = function(element, callSequence) {
     // element is the html form element = document.getElementById("fileUploadForm")
     // callSequence is an array of functions to call as each async API call completes.
@@ -272,16 +272,14 @@ var L$ = (function(my) {
     }, '.populateContentGroup');
   }
 
-  my.editDocument = function($xmlWithDocument, callSequence) {
-    var documentId = $xmlWithDocument.find('success').children('document').children('id').text();
-    console.log('editDocument: documentId: ', documentId);
+  function openFlash(ap, $xml, callSequence) {
+    console.log('openFlash: ap: ', ap);
     $('#textDiv').hide();
     $('#flashDiv').show();
-    var ap = {
+    var ap0 = {
       options: {
-        onLogout: function() { $(".one2edit").slideUp(function() { passOn($xmlWithDocument, callSequence); });
-          // perhaps do something else after closing editor and sliding window up is finished
-        }
+        onLogout: function() { $(".one2edit").slideUp(function() { passOn($xmlWithDocument, callSequence); }) }
+        // perhaps do something else after closing editor and sliding window up is finished
       },
       parameters: { wmode: 'opaque' },
       flashvars: {
@@ -291,15 +289,39 @@ var L$ = (function(my) {
         idleTimeout: 900,
         editor: {
           closeBehavior: one2edit.editor.CLOSE_BEHAVIOR_LOGOUT,
+        }
+      }
+    };
+    var ap2 = $.extend(true, {}, ap0, ap); // deep copy
+    console.log('openFlash: ap2: ' + JSON.stringify(ap2, null, 4)); // just do it like this for debug output. Does not show functions.
+    one2edit.create(ap2);
+  }
+
+  my.editDocument = function($xmlWithDocument, callSequence) {
+    var documentId = $xmlWithDocument.find('success').children('document').children('id').text();
+    console.log('editDocument: documentId: ', documentId);
+    openFlash({
+      flashvars: {
+        editor: {
           documentId: documentId
         }
-        // jobEditor: {
-        //   jobId: jobId               // A jobId is returned when we start a job template (see API example)
-        // }
       }
-    }
-    console.log('editDocument: ap: ' + JSON.stringify(ap, null, 4)); // just do it like this for debug output. Does not show functions.
-    one2edit.create(ap);
+    }, $xmlWithDocument, callSequence);
+  };
+
+  my.editJob = function($xmlWithJob, callSequence) {
+    console.log('editJob: $xmlWithJob:', $xmlWithJob[0]);
+    // TODO: from the jobs, find one STARTED and edit it
+    var $job = $xmlWithJob.find('jobs').find('status:contains("STARTED")').first().parent(); // first started job
+    var jobId = $job.children('id').text();
+    console.log('editJob: jobId: ', jobId);
+    openFlash({
+      flashvars: {
+        jobEditor: {
+          jobId: jobId
+        }
+      }
+    }, $xmlWithJob, callSequence);
   }
 
 
@@ -307,6 +329,72 @@ var L$ = (function(my) {
     callServer({
       command: 'user.session.quit'
     }, undefined, '#logout');
+  }
+
+  function findTemplatelessWorkflow1($xml, callSequence) {
+    findFolderWithName('UploadedWorkflows', 'workflow', $xml, callSequence);
+  }
+
+  function findTemplatelessWorkflow2($xml, callSequence) {
+    findFileInFolder('TemplatelessWorkflow', 'workflow', $xml, callSequence);
+  }
+
+  function findFolderWithName(folderName, type, $xmlPassedIn, callSequence) {
+    // type is 'workflow', 'template' or 'document'
+    callServer({
+      command: type+'.folder.list',
+      depth: 0 // recurse indefinitely
+    }, function($xml) {
+      var $folder = $xml.find('name:contains("'+folderName+'")').parent();
+      $xmlPassedIn.find('success').append($folder); // NOTE that this removes $folder from $xml
+      passOn($xmlPassedIn, callSequence); // which we hope has the folder in it.
+    },
+    '.findFolderWithName');
+  }
+
+  function findFileInFolder(fileName, type, $xmlPassedIn, callSequence) {
+    // type is 'workflow', 'template' or 'document'
+    var folderId = $xmlPassedIn.find('success').children('folder').children('id').text();
+    callServer({
+      command: type+'.list',
+      folderId: folderId
+    }, function($xml) {
+      // TODO: this fails where a second folder includes the text and then more.
+      var $file = $xml.find('name:contains("'+fileName+'")').parent();
+      $xmlPassedIn.find('success').append($file);
+      passOn($xmlPassedIn, callSequence); // which we hope has the file in it.
+    }, '.findFileInFolder')
+  }
+
+  function startTemplatelessTemplateJobReally($xmlPassedIn, callSequence) {
+    console.log('startTemplatelessTemplateJobReally: xmlPassedIn:', $xmlPassedIn[0]);
+    var $success = $xmlPassedIn.find('success');
+    var documentId = $success.children('document').children('id').text();
+    var workflowId = $success.children('workflow').children('id').text();
+    var newDocumentName = $success.children('document').children('name').text() + ' Version Copy';
+    var ap = {
+      command: 'template.start',
+      documentName: newDocumentName,
+      documentId: documentId,
+      workflowId: workflowId
+    }
+    callServer(ap, function($xml){
+      passOn($xml, callSequence);
+    }, '.startTemplatelessTemplateJobReally');
+  }
+
+  function startEditingJob($xmlPassedIn, callSequence) {
+
+  }
+
+  my.startTemplatelessTemplateJob = function($xmlWithDocument, callSequence) {
+    var callSequence1 = [
+      findTemplatelessWorkflow1,
+      findTemplatelessWorkflow2,
+      startTemplatelessTemplateJobReally,
+      my.editJob
+    ]
+    passOn($xmlWithDocument, callSequence1);
   }
 
 

@@ -21,8 +21,14 @@
 
   // NOTE that above code must be run before anything else is sent to the browser. Should it be above <html>?
 
-  $wantOpenEditor = filter_input(INPUT_GET, "open", FILTER_VALIDATE_BOOLEAN, array("flags" => FILTER_NULL_ON_FAILURE)) ? 1 : 0; // https://stackoverflow.com/questions/3384942/true-in-get-variables#3384973
+  function get01($name) {
+    // https://stackoverflow.com/questions/3384942/true-in-get-variables#3384973
+    return filter_input(INPUT_GET, $name, FILTER_VALIDATE_BOOLEAN, array("flags" => FILTER_NULL_ON_FAILURE)) ? 1 : 0;
+  }
+  $wantOpenEditor = get01('open');
+  $wantTemplateslessJob = get01('templateless');
 
+  exportToJavascript('wantTemplateslessJob', $wantTemplateslessJob);
   exportToJavascript('wantOpenEditor', $wantOpenEditor);
   exportToJavascript('baseURL', $t->one2editServerBaseUrl);
   exportToJavascript('apiUrl', $t->one2editServerApiUrl);
@@ -162,7 +168,7 @@
     // because otherwise this code tries to run before callServer.js has loaded and the L$ library is a complete mess.
 
     $(window).on('beforeunload', function(){ console.log('beforeunload running'); L$.logoutFromServer(); }) // Must logout on leaving this page or we'll run out of one2edit licences.
-    
+
     L$.$display($('#display')); // tell library where to find progress elements.
 
     // This sequence is handled in order by the library API calls in callServer.js
@@ -175,6 +181,7 @@
     ];
 
     if (wantOpenEditor) { callSequence0.push(L$.editDocument); }
+    if (wantTemplateslessJob) { callSequence0.push(L$.startTemplatelessTemplateJob); }
 
   });
 
