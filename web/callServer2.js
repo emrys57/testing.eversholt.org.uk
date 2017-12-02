@@ -18,15 +18,19 @@ var L$ = (function(my) {
     return $display;
   }
 
+  // All the functions belwo defined like function(a, callSequence) are designed to be chained together.
+  // They mostly contain async returns from the API. In the return code, the next function in callSequence
+  // is called, passing along a modified version of the object a.
+
   // https://stackoverflow.com/questions/2320069/jquery-ajax-file-upload
   // This uploads a file. Change this to give a progress bar on upload and drag-and-drop functionality.
-  my.submitForm = function($element, callSequence) {
-    // element is the jQuery object that is the upload form
+  my.submitForm = function(a, callSequence) {
+    // a.$form is the jQuery object that is the upload form.
     // callSequence is an array of functions to call as each async API call completes.
     console.log("submit event");
     $uploading = $display.find('.uploading');
     $uploading.slideDown();
-    var fd = new FormData($element[0]);
+    var fd = new FormData(a.$form[0]);
     fd.append("sessionId", sessionId);
     fd.append("clientId", clientId);
     fd.append("command", "asset.upload");
@@ -58,7 +62,8 @@ var L$ = (function(my) {
           return;
         }
         $uploading.find('.success').slideDown();
-        passOn($xml, callSequence0);
+        a.$xml = $xml;
+        passOn(a, callSequence0);
       }
     });
   }
@@ -68,11 +73,11 @@ var L$ = (function(my) {
   // It's just rather scruffy to have both javascript and php handle the one2edit API.
   // I wish I had a library to handle these APIs direct from the API definitions.
 
-  my.doUnzipAtServer = function($xml, callSequence) {
-    // $xml is the result of the asset.upload API call.
+  my.doUnzipAtServer = function(a, callSequence) {
+    // a.$xml is the result of the asset.upload API call.
     // If callSequence is present, it's an array of functions. If the callServer here succeeds, the top function is removed, called and the remaining callSequence passed on.
     // It's a way of building a sequence of API calls which complete asynchronously.
-    var zipFileIdentifier = $xml.find('identifier').text();
+    var zipFileIdentifier = a.$xml.find('identifier').text();
     callServer({
       command: 'asset.extract',
       projectId: projectId, // that is the assset project
@@ -80,20 +85,21 @@ var L$ = (function(my) {
       remove: true // we definitely want to remove the zip file
     }, function($xml) {
       console.log('doUnzipAtServer: success: xml:', $xml[0]);
-      passOn($xml, callSequence);
+      a.$xml = $xml;
+      passOn(a, callSequence);
     }, '.unzipping');
   }
 
   function callServer(a, b, c) { my.callServer(a, b, c); } // for compatibility with older code. Grrr
 
-  function passOn($xml, callSequence) {
-    // pass on the $xml to the next function in the sequence, if such a function exists
+  function passOn(a, callSequence) {
+    // pass on the object `a` to the next function in the sequence, if such a function exists
     if ($.isArray(callSequence) && (typeof callSequence[0] == 'function')) {
       var topFunction = callSequence.shift();
       // var fs = '';
       // callSequence.forEach(function(f) { fs += ((fs.length == 0)?'':',') + f.name; });
-      // console.log('passOn: ', $xml[0], '; to: ', topFunction.name, '; sequence after pop: ', fs);
-      topFunction($xml, callSequence);
+      // console.log('passOn: ', a, '; to: ', topFunction.name, '; sequence after pop: ', fs);
+      topFunction(a, callSequence);
     } else { console.log('No more to do in sequence, finished.'); }
   }
 
@@ -139,9 +145,9 @@ var L$ = (function(my) {
     })
   }
 
-  my.doSearchForInddFile = function($xml, callSequence) {
-    // $xml is the result of the 'asset.extract' call
-    var folderIdentifier = $xml.find('identifier').text();
+  my.doSearchForInddFile = function(a, callSequence) {
+    // a.$xml is the result of the 'asset.extract' call
+    var folderIdentifier = a.$xml.find('identifier').text();
     var foundInddFile = false; // global, first descendant to find file sets it for all
     // Hunt down the .indd file within the folders created by unzipping.
     // Have a separate function for the search because that function uses folder identifiers recursively, not the xml result.
@@ -171,7 +177,7 @@ var L$ = (function(my) {
           if (type != 'file') { return true; } // same as 'continue'
           if (name.match(/\.indd$/i) != null) { // use this in case the extension contains upper case. Look for any .indd file
             foundInddFile = true;
-            passOn($asset, callSequence); // NOTE, $asset, not $xml
+            passOn({$asset:$asset}, callSequence); // NOTE, $asset, not $xml
             return false; // same as 'break'
           }
         });
@@ -195,10 +201,10 @@ var L$ = (function(my) {
 
 
 
-  my.doCreateProject = function($xml, callSequence) {
+  my.doCreateProject = function(a, callSequence) {
     // transform the InDesign file in the asset space into an editable project in the one2edit document space.
-    // $xml is the result of 'asset.list' and contains just the asset we want to convert.
-    var assetIdentifier = $xml.find('identifier').text();
+    // a.$asset is the result of 'asset.list' and contains just the asset we want to convert.
+    var assetIdentifier = a.$asset.find('identifier').text();
     console.log('doCreateProject: with asset:', assetIdentifier);
     callServer({
       command: 'document.link',
@@ -207,16 +213,16 @@ var L$ = (function(my) {
       folderId: uploadedMastersFolderId // where to create the new document
     }, function($xml) {
       console.log('doCreateProject: success: ', $xml[0]);
-      passOn($xml, callSequence);
+      passOn({$xml:$xml}, callSequence);
     }, '.createProject');
   }
 
-  my.doAddContentGroup = function($xml, callSequence) {
+  my.doAddContentGroup = function(a, callSequence) {
     // Add the 'Editable Content Group' which is the expected one for our workflows
     // if the group already exists (somehow) we get a code-4004 error, which we can ignore.
     // Except we don't yet, which is a mssing feature. Have to allow it in callServer.
-    // '$xml' is the result of a call to 'doCreateProject'
-    var $document = $xml.find('document');
+    // 'a.$xml' is the result of a call to 'doCreateProject'
+    var $document = a.$xml.find('document');
     console.log('doAddContentGroup: initially: document:', $document[0]);
     var documentId = $document.children('id').text(); // there is a document.owner.id too; don't want that one.
     callServer({
@@ -225,21 +231,21 @@ var L$ = (function(my) {
       name: 'Editable Content Group'
     }, function($xml) {
       $xml.find('success').append($document);
-      passOn($xml, callSequence); // $xml is both returned data and document
+      passOn({$document:$document, $xml:$xml}, callSequence);
     }, '.addContentGroup');
   }
 
-  my.doPopulateContentGroup = function($xmlWithDocument, callSequence) {
+  my.doPopulateContentGroup = function(a, callSequence) {
     // Move any content from an editable layer to the Editable Content Group just created.
-    // '$xml' contains the response to a 'document.group.add' API call, plus the document xml.
-    $success = $xmlWithDocument.find('success');
-    var toGroupId = $success.children('group').children('id').text();
-    var documentId = $success.children('document').children('id').text();
+    // 'a.$xml' contains the response to a 'document.group.add' API call. a.$document is the document.
+    $success = a.$xml.find('success');
+    a.toGroupId = $success.children('group').children('id').text();
+    a.documentId = a.$document.children('id').text();
     // I cannot filter the layers by name with a regular expression. I need to list the layers and sort out which ones I want here.
-    console.log('doPopulateContentGroup: toGroupId: ', toGroupId, '; documentId: ', documentId, '; xml: ', $success[0]);
+    console.log('doPopulateContentGroup: toGroupId: ', a.toGroupId, '; documentId: ', a.documentId, '; xml: ', $success[0]);
     callServer({
       command: 'document.layer.list',
-      documentId: documentId
+      documentId: a.documentId
     }, function($xml) {
       console.log('doPopulateContentGroup: layer.list success: xml: ', $xml[0]); // we have a successful API call result
       $allLayers = $xml.find('layer');
@@ -262,13 +268,13 @@ var L$ = (function(my) {
       var filterXml = '<filters> <itemlayer> ' + editableLayersXml + ' </itemlayer> </filters>';
       var serverData = {
         command: 'document.group.item.move',
-        documentId: documentId,
-        toGroupId: toGroupId,
+        documentId: a.documentId,
+        toGroupId: a.toGroupId,
         filter: filterXml // the filter determines what content is moved
       };
       callServer(serverData, function($xml) {
         console.log('moveItemsToContentGroup: serverData: ', serverData, 'responseXml:', $xml[0]);
-        passOn($xmlWithDocument, callSequence); // NOTE, not xml returned from callServer
+        passOn(a, callSequence); // NOTE, not xml returned from callServer
       }, '.moveItemsToContentGroup');
     }, '.populateContentGroup');
   }
@@ -298,31 +304,30 @@ var L$ = (function(my) {
     one2edit.create(ap2);
   }
 
-  my.editDocument = function($xmlWithDocument, callSequence) {
-    var documentId = $xmlWithDocument.find('success').children('document').children('id').text();
-    console.log('editDocument: documentId: ', documentId);
+  my.editDocument = function(a, callSequence) {
+    console.log('editDocument: documentId: ', a.documentId);
     openFlash({
       flashvars: {
         editor: {
-          documentId: documentId
+          documentId: a.documentId
         }
       }
-    }, $xmlWithDocument, callSequence);
+    }, a, callSequence);
   };
 
-  my.editJob = function($xmlWithJob, callSequence) {
-    console.log('editJob: $xmlWithJob:', $xmlWithJob[0]);
+  my.editJob = function(a, callSequence) {
+    console.log('editJob: $xmlWithJob:', a.$xml[0]);
     // TODO: from the jobs, find one STARTED and edit it
-    var $job = $xmlWithJob.find('jobs').find('status:contains("STARTED")').first().parent(); // first started job
-    var jobId = $job.children('id').text();
-    console.log('editJob: jobId: ', jobId);
+    a.$job = a.$xml.find('jobs').find('status:contains("STARTED")').first().parent(); // first started job
+    a.jobId = a.$job.children('id').text();
+    console.log('editJob: jobId: ', a.jobId);
     openFlash({
       flashvars: {
         jobEditor: {
-          jobId: jobId
+          jobId: a.jobId
         }
       }
-    }, $xmlWithJob, callSequence);
+    }, a, callSequence);
   }
 
 
@@ -332,70 +337,68 @@ var L$ = (function(my) {
     }, undefined, '#logout');
   }
 
-  function findTemplatelessWorkflow1($xml, callSequence) {
-    findFolderWithName('UploadedWorkflows', 'workflow', $xml, callSequence);
+  function findTemplatelessWorkflow1(a, callSequence) {
+    a.folderName = 'UploadedWorkflows';
+    a.type = 'workflow';
+    findFolderWithName(a, callSequence);
   }
 
-  function findTemplatelessWorkflow2($xml, callSequence) {
-    findFileInFolder('TemplatelessWorkflow', 'workflow', $xml, callSequence);
+  function findTemplatelessWorkflow2(a, callSequence) {
+    a.fileName = 'TemplatelessWorkflow';
+    a.type = 'workflow';
+    findFileInFolder(a, callSequence);
   }
 
-  function findFolderWithName(folderName, type, $xmlPassedIn, callSequence) {
+  function findFolderWithName(a, callSequence) {
     // type is 'workflow', 'template' or 'document'
     callServer({
-      command: type+'.folder.list',
+      command: a.type+'.folder.list',
       depth: 0 // recurse indefinitely
     }, function($xml) {
-      var $folder = $xml.find('name:contains("'+folderName+'")').parent();
-      $xmlPassedIn.find('success').append($folder); // NOTE that this removes $folder from $xml
-      passOn($xmlPassedIn, callSequence); // which we hope has the folder in it.
+      a.$folder = $xml.find('name:contains("'+a.folderName+'")').parent();
+      passOn(a, callSequence); // which we hope has the folder in it.
     },
     '.findFolderWithName');
   }
 
-  function findFileInFolder(fileName, type, $xmlPassedIn, callSequence) {
-    // type is 'workflow', 'template' or 'document'
-    var folderId = $xmlPassedIn.find('success').children('folder').children('id').text();
+  function findFileInFolder(a, callSequence) {
+    // a.type is 'workflow', 'template' or 'document'
+    a.folderId = a.$folder.children('id').text();
     callServer({
-      command: type+'.list',
-      folderId: folderId
+      command: a.type+'.list',
+      folderId: a.folderId
     }, function($xml) {
       // TODO: this fails where a second folder includes the text and then more.
-      var $file = $xml.find('name:contains("'+fileName+'")').parent();
-      $xmlPassedIn.find('success').append($file);
-      passOn($xmlPassedIn, callSequence); // which we hope has the file in it.
+      a.$file = $xml.find('name:contains("'+a.fileName+'")').parent();
+      passOn(a, callSequence); // which we hope has the file in it.
     }, '.findFileInFolder')
   }
 
-  function startTemplatelessTemplateJobReally($xmlPassedIn, callSequence) {
-    console.log('startTemplatelessTemplateJobReally: xmlPassedIn:', $xmlPassedIn[0]);
-    var $success = $xmlPassedIn.find('success');
-    var documentId = $success.children('document').children('id').text();
-    var workflowId = $success.children('workflow').children('id').text();
-    var newDocumentName = $success.children('document').children('name').text() + ' Version Copy';
+  function startTemplatelessTemplateJobReally(a, callSequence) {
+    console.log('startTemplatelessTemplateJobReally: a: ', a, '; xmlPassedIn:', a.$xml[0]);
+    a.workflowId = a.$file.children('id').text();
+    a.newDocumentName = a.$document.children('name').text() + ' Version Copy';
     var ap = {
       command: 'template.start',
-      documentName: newDocumentName,
-      documentId: documentId,
-      workflowId: workflowId
+      documentName: a.newDocumentName,
+      documentId: a.documentId,
+      workflowId: a.workflowId
     }
     callServer(ap, function($xml){
-      passOn($xml, callSequence);
+      a.$xml = $xml;
+      passOn(a, callSequence);
     }, '.startTemplatelessTemplateJobReally');
   }
 
-  function startEditingJob($xmlPassedIn, callSequence) {
 
-  }
-
-  my.startTemplatelessTemplateJob = function($xmlWithDocument, callSequence) {
+  my.startTemplatelessTemplateJob = function(a, callSequence) {
     var callSequence1 = [
       findTemplatelessWorkflow1,
       findTemplatelessWorkflow2,
       startTemplatelessTemplateJobReally,
       my.editJob
     ]
-    passOn($xmlWithDocument, callSequence1);
+    passOn(a, callSequence1);
   }
 
 

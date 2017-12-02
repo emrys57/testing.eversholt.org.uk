@@ -10,7 +10,7 @@
   <script type="text/javascript" src="https://demo.one2edit.com/scripts/one2edit.js"></script>
   <script src="https://code.jquery.com/jquery-3.2.1.js"></script>
   <script src="dismiss.js"></script>
-  <script src="callServer.js"></script>
+  <script src="callServer2.js"></script>
   <?php
 
   // NO echo() here - session is starting
@@ -158,7 +158,7 @@
   var callSequence0;
 
   function submitForm2() { // called when submit button is pressed on form
-    L$.submitForm($('#fileUploadForm'), callSequence0);
+    L$.submitForm({$form:$('#fileUploadForm')}, callSequence0);
     return false; // MUST return false or chaos ensues, browser reloads with POST.
   }
 
