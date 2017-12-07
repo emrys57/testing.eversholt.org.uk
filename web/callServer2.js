@@ -153,8 +153,6 @@ var L$ = (function(my) {
     // Have a separate function for the search because that function uses folder identifiers recursively, not the xml result.
     searchForInddFile(folderIdentifier, callSequence);
 
-
-
     function searchForInddFile(folderIdentifier, callSequence) {
       // 'folderIdentifier' is a complete file path in the asset space
       // find the files and folders in that folder.
@@ -166,6 +164,16 @@ var L$ = (function(my) {
       // console.log('searchForInddFile: Folder: ', folderIdentifier, ' ', callServerData);
 
       callServer(callServerData, function($xml) {
+        // $allFiles = $xml.find('asset').children('type:contains("file")').parent(); // file assets
+        // $allFiles.each(function(i,e) {
+        //   var $asset = $(e);
+        //   if ($asset.children('name').text().match(/\.indd$/i) != null) {
+        //     foundInddFile = true;
+        //     a.$asset = $asset;
+        //     passOn(a, callSequence); // NOTE, $asset, not $xml
+        //     return false; // same as 'break'
+        //   }
+        // });
         $allAssets = $xml.find('asset'); // that finds all the asset entries
         // here, look through the files returned and see if any one is an indd file
         // we use the first indd file we find, assuming that only one file exists
@@ -177,7 +185,10 @@ var L$ = (function(my) {
           if (type != 'file') { return true; } // same as 'continue'
           if (name.match(/\.indd$/i) != null) { // use this in case the extension contains upper case. Look for any .indd file
             foundInddFile = true;
-            passOn({$asset:$asset}, callSequence); // NOTE, $asset, not $xml
+            a.$asset = $asset; // picks up `a` from cotaining function
+            // It's important to keep passing the same `a` and not create a new one, because `a` might contain extra info
+            // which we don't know about - like some callback routine to be executed much later.
+            passOn(a, callSequence); // NOTE, $asset, not $xml
             return false; // same as 'break'
           }
         });
@@ -194,6 +205,11 @@ var L$ = (function(my) {
           console.log('searchForInddFile: each folder: ', newFolderIdentifier, ': ', type);
           searchForInddFile(newFolderIdentifier, callSequence);
           if (foundInddFile) { return false; } // same as break
+          //
+          // newFolderIdentifier = $(e).find('type:contains("folder")').parent().find('identifier').text();
+          // if (newFolderIdentifier == '') { return true; } // i.e. continue
+          // searchForInddFile(newFolderIdentifier, callSequence);
+          // if (foundInddFile) { return false; } // same as break
         })
       }, '.searchForInddFile');
     }
@@ -213,7 +229,8 @@ var L$ = (function(my) {
       folderId: uploadedMastersFolderId // where to create the new document
     }, function($xml) {
       console.log('doCreateProject: success: ', $xml[0]);
-      passOn({$xml:$xml}, callSequence);
+      a.$xml = $xml;
+      passOn(a, callSequence);
     }, '.createProject');
   }
 
@@ -222,16 +239,16 @@ var L$ = (function(my) {
     // if the group already exists (somehow) we get a code-4004 error, which we can ignore.
     // Except we don't yet, which is a mssing feature. Have to allow it in callServer.
     // 'a.$xml' is the result of a call to 'doCreateProject'
-    var $document = a.$xml.find('document');
-    console.log('doAddContentGroup: initially: document:', $document[0]);
-    var documentId = $document.children('id').text(); // there is a document.owner.id too; don't want that one.
+    a.$document = a.$xml.find('document');
+    console.log('doAddContentGroup: initially: document:', a.$document[0]);
+    a.documentId = $document.children('id').text(); // there is a document.owner.id too; don't want that one.
     callServer({
       command: 'document.group.add',
-      documentId: documentId,
+      documentId: a.documentId,
       name: 'Editable Content Group'
     }, function($xml) {
-      $xml.find('success').append($document);
-      passOn({$document:$document, $xml:$xml}, callSequence);
+      a.$xml = $xml;
+      passOn(a, callSequence);
     }, '.addContentGroup');
   }
 
@@ -240,7 +257,6 @@ var L$ = (function(my) {
     // 'a.$xml' contains the response to a 'document.group.add' API call. a.$document is the document.
     $success = a.$xml.find('success');
     a.toGroupId = $success.children('group').children('id').text();
-    a.documentId = a.$document.children('id').text();
     // I cannot filter the layers by name with a regular expression. I need to list the layers and sort out which ones I want here.
     console.log('doPopulateContentGroup: toGroupId: ', a.toGroupId, '; documentId: ', a.documentId, '; xml: ', $success[0]);
     callServer({
@@ -279,13 +295,13 @@ var L$ = (function(my) {
     }, '.populateContentGroup');
   }
 
-  function openFlash(ap, $xml, callSequence) {
+  function openFlash(ap, a, callSequence) {
     console.log('openFlash: ap: ', ap);
     $('#textDiv').hide();
     $('#flashDiv').show();
     var ap0 = {
       options: {
-        onLogout: function() { $(".one2edit").slideUp(function() { passOn($xml, callSequence); }) }
+        onLogout: function() { $(".one2edit").slideUp(function() { passOn(a, callSequence); }) }
         // perhaps do something else after closing editor and sliding window up is finished
       },
       parameters: { wmode: 'opaque' },

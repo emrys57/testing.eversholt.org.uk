@@ -7,7 +7,7 @@
   <title>One2Edit API test</title>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script type="text/javascript" src="https://demo.one2edit.com/scripts/one2edit.js"></script>
+  <script src="https://demo.one2edit.com/scripts/one2edit.js"></script>
   <script src="https://code.jquery.com/jquery-3.2.1.js"></script>
   <script src="dismiss.js"></script>
   <script src="callServer2.js"></script>
