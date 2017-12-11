@@ -79,6 +79,8 @@
       <input type="file" name="data" accept=".zip" required />
       <input type="submit" value="Upload Zip File" />
     </form>
+    <div id='progressText'>
+    </div>
     <!-- This code here, which is all initially hidden, displays the progress of the operation. -->
     <div id='display'>
       <div class='uploading progress'>
@@ -156,9 +158,69 @@
   // We have to declare it here so that submitForm2 can find it
   // but we can only set it later because callServer.js is still loading when this code runs
   var callSequence0;
+  var genericEvent = function(a, event) {
+    var thisProgress = event+': ';
+    var name = '';
+    if ($.isArray(a.callSequence) && (typeof a.sequenceIndex != 'undefined') && (typeof a.callSequence[a.sequenceIndex] != 'undefined') && (typeof a.callSequence[a.sequenceIndex].f == 'function')) {
+      if (typeof a.callSequence[a.sequenceIndex].stage != 'undefined') {
+        name = a.callSequence[a.sequenceIndex].stage;
+        switch(event) {
+          case 'beforeStart':
+          thisProgress = a.callSequence[a.sequenceIndex].stage + ': ';
+          break;
+          case 'onDone':
+          thisProgress = 'Success!<br />';
+          break;
+          case 'onError':
+          thisProgress = 'Error: ☹️<br />';
+          var code = a.$xml.find('error').children('code').text();
+          var message = a.$xml.find('message').text();
+          if ((typeof code != 'undefined') && (code != '')) {
+            thisProgress += 'The server returned error code '+code+' with the message: '+message+'<br />';
+          }
+          break;
+          default:
+          thisProgress = 'Unkown event: '+event+'<br />';
+        }
+      } else {
+        thisProgress += a.callSequence[a.sequenceIndex].f.name;
+      }
+      console.log(event, ': ', name, 'a: ', a);
+      $('#progressText').append(thisProgress);
+    }
+  }
+  var genericEvents = {
+    adjustDisplayForFlash: function(a) {
+      $('#textDiv').hide();
+      $('#flashDiv').show();
+    },
+    adjustDisplayAfterFlash: function(a) {
+      $('#flashDiv').hide();
+      $('#textDiv').show();
+      window.onbeforeunload = undefined;
+    },
+    beforeStart: genericEvent,
+    onDone: genericEvent,
+    onError: genericEvent,
+    noEditableLayers: function(a, event) {
+      $('#progressText').append('NO EDITABLE LAYERS! ');
+    },
+    beforeApiCall: function(a, event, ajaxCallObject) {
+      console.log('callServer: beforeApiCall: ', ajaxCallObject);
+    },
+    onApiResponse: function(a, event) {
+      console.log('callServer: onApiResponse: ', a.$xml[0]);
+    }
+  };
 
   function submitForm2() { // called when submit button is pressed on form
-    L$.submitForm({$form:$('#fileUploadForm')}, callSequence0);
+    a = {
+      // this object is the initial value of 'a' which is passed through all the library functions.
+      $form:$('#fileUploadForm'),
+      callSequence: callSequence0,
+      genericEvents: genericEvents
+    };
+    L$.startSequence(a);
     return false; // MUST return false or chaos ensues, browser reloads with POST.
   }
 
@@ -167,26 +229,25 @@
     // definitely have to use .ready() here or all is chaos
     // because otherwise this code tries to run before callServer.js has loaded and the L$ library is a complete mess.
 
-    $(window).on('beforeunload', function(){ console.log('beforeunload running'); L$.logoutFromServer(); }) // Must logout on leaving this page or we'll run out of one2edit licences.
-
-    L$.$display($('#display')); // tell library where to find progress elements.
+    $(window).on('unload', function(){ console.log('unload running'); L$.logoutFromServer({}); }) // Must logout on leaving this page or we'll run out of one2edit licences.
 
     // This sequence is handled in order by the library API calls in callServer.js
     callSequence0 = [
-      L$.doUnzipAtServer,
-      L$.doSearchForInddFile,
-      L$.doCreateProject,
-      L$.doAddContentGroup,
-      L$.doPopulateContentGroup
+      {f:L$.submitForm, stage:'Uploading zip file'},
+      {f:L$.doUnzipAtServer, stage:'Unzipping file'},
+      {f:L$.doSearchForInddFile, stage:'Searching for InDesign file'},
+      {f:L$.doCreateProject, stage:'Creating editable document from InDesign file'},
+      {f:L$.doAddContentGroup, stage:'Creating the Editable Content Group'},
+      {f:L$.doPopulateContentGroup, stage:'Moving content into the Editable Content Group'}
     ];
 
-    if (wantOpenEditor) { callSequence0.push(L$.editDocument); }
-    if (wantTemplateslessJob) { callSequence0.push(L$.startTemplatelessTemplateJob); }
+    if (wantOpenEditor) { callSequence0.push({f:L$.editDocument, stage: 'Editing Document'}); }
+    if (wantTemplateslessJob) { callSequence0.push({f:L$.startTemplatelessTemplateJob, stage: 'Starting templateless template job'}); } // NOTE executing this later will change the value of a.callSequence
 
   });
 
 
-  </script>
+</script>
 
 
 </body>
