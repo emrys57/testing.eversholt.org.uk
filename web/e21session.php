@@ -57,8 +57,8 @@ class One2editTalker {
     // if it is still FALSE, cannot log in.
     if (debug(3)) { echo('One2editTalker: talk() returned:<br />'); var_dump($sxml); echo ('<br />'); }
     if ($sxml === FALSE) {
-      debug(1,'One2editTalker: ping returned false, exit');
-      exit();
+      debug(1,'One2editTalker: ping returned false, returning FALSE instead of a new One2editTalker. 🙁');
+      return FALSE;
       // $this->login();
     }
     debug(2, 'One2editTalker: built One2editTalker');

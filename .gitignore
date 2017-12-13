@@ -2,3 +2,5 @@
 logs/*
 .remote-sync.json
 web/NotForGithub/*
+web/celtra/*
+celtraMisc/*

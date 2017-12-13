@@ -55,22 +55,118 @@ var L$ = (function(my) {
     }
   }
 
+  my.startSession = function(a) {
+    // Start a session with the one2edit server, by calling the MediaFerry server and asking it to tell you the sessionId.
+    // Also look up uploaded masters folder ID and asset project ID because I keep failing to check them.
+    var myData = {};
+    if (typeof a.username == 'string') { myData.username = a.username; }
+    $.ajax( {
+      url: new21sessionUrl,
+      type: "POST",
+      data: myData,
+      error: function(jqXHR, textStatus, errorThrown) {
+        console.log('callServer: ajax error: textStatus: ', textStatus, 'errorThrown: ', errorThrown, ' jqXHR: ', jqXHR);
+        if (typeof a.onAjaxError == 'function') { // optionally signal ajax error to calling function.
+          (a.onAjaxError(a, jqXHR, textStatus, errorThrown));
+        }
+      },
+      success: function(xml) {
+        a.$xml = $(xml);
+        a.one2editSession = {};
+        var uploadedMastersFolderName = 'UploadedMasters';
+        // convert xml jQuery object into plain javascript object
+        ['code', 'message', 'username', 'clientId', 'sessionId', 'baseUrl', 'apiUrl' ].forEach(function(e) { a.one2editSession[e] = a.$xml.find(e).text(); });
+        if (a.one2editSession.code != '') {
+          console.log('one2edit server login failed: code: ', a.one2editSession.code, '; message: ', a.one2editSession.message);
+          maybeProgress(a, 'loginFailed');
+          return;
+        }
+        // my.callServer(a, {
+        //   command:'document.folder.list',
+        //   id:1, // the root document folder
+        //   depth:1
+        // }, function(a) {
+        //   var selector = 'name:contains('+uploadedMastersFolderName+')'
+        //   var $folders = a.$xml.find('folder').children(selector).parent();
+        //   $folders.each(function(i,e) {
+        //     // this makes sure we don't have multiple folders containg this text.
+        //     $folder = $(e);
+        //     if ($folder.children('name').text() == uploadedMastersFolderName) { a.one2editSession.uploadedMastersFolderId = $folder.children('id').text(); }
+        //   });
+        //   if (typeof a.one2editSession.uploadedMastersFolderId == 'undefined') {
+        //     console.log('startSession: folder not found: ', '/'+uploadedMastersFolderName);
+        //     maybeProgress(a, 'uploadedMastersFolder');
+        //     return;
+        //   }
+        //   my.callServer(a, {
+        //     command: 'asset.list'
+        //   }, function(a){
+        //     a.one2editSession.projectId = a.$xml.find('asset').first().children('project').text(); // the asset project
+        //     if (typeof a.one2editSession.projectId == 'undefined') {
+        //       console.log('startSession: asset projectId not found.');
+        //       maybeProgress(a, 'assetProject');
+        //       return;
+        //     }
+        passOn(a);
+        //   });
+        // });
+      }
+    });
+  };
+
+  my.findUploadedMastersFolderId = function(a) {
+    var uploadedMastersFolderName = 'UploadedMasters';
+    my.callServer(a, {
+      command:'document.folder.list',
+      id:1, // the root document folder
+      depth:1
+    }, function(a) {
+      var selector = 'name:contains('+uploadedMastersFolderName+')'
+      var $folders = a.$xml.find('folder').children(selector).parent();
+      $folders.each(function(i,e) {
+        // this makes sure we don't have multiple folders containg this text.
+        $folder = $(e);
+        if ($folder.children('name').text() == uploadedMastersFolderName) { a.one2editSession.uploadedMastersFolderId = $folder.children('id').text(); }
+      });
+      if (typeof a.one2editSession.uploadedMastersFolderId == 'undefined') {
+        console.log('startSession: folder not found: ', '/'+uploadedMastersFolderName);
+        maybeProgress(a, 'uploadedMastersFolder');
+        return;
+      }
+      passOn(a);
+    });
+  }
+
+  my.findAssetProjectId = function(a) {
+    my.callServer(a, {
+      command: 'asset.list'
+    }, function(a){
+      a.one2editSession.projectId = a.$xml.find('asset').first().children('project').text(); // the asset project
+      if (typeof a.one2editSession.projectId == 'undefined') {
+        console.log('startSession: asset projectId not found.');
+        maybeProgress(a, 'assetProject');
+        return;
+      }
+      passOn(a);
+    });
+  }
+
   my.callServer = function(a, data, realSuccess, moreAjaxStuff) {
     // call the one2edit server.
     // the 'realSuccess' function is only called if the server does not return an error code.
     // 'data' is an array of the parameters to pass to the server.
     // callServer automatically adds the sessionId and workspaceId to data.
-    // `a` is only used for logging and progress calls.
+    // `a` contains teh session info and is sued for logging and progress calls.
     // `moreAjaxStuff`, if present, is extra info to be added to the Ajax call.
 
     var myData = {
-      sessionId: sessionId,
-      clientId: clientId
+      sessionId: a.one2editSession.sessionId,
+      clientId: a.one2editSession.clientId
     };
     $.extend(myData, data);
     // console.log('callServer: ', myData);
     ajaxCallObject = {
-      url: apiUrl,
+      url: a.one2editSession.apiUrl,
       type: "POST",
       data: myData,
       error: function(jqXHR, textStatus, errorThrown) {
@@ -106,6 +202,8 @@ var L$ = (function(my) {
     $.ajax(ajaxCallObject);
   }
 
+
+
   // https://stackoverflow.com/questions/2320069/jquery-ajax-file-upload
   // This uploads a file. Change this to give a progress bar on upload and drag-and-drop functionality.
   my.submitForm = function(a) {
@@ -113,10 +211,10 @@ var L$ = (function(my) {
     // callSequence is an array of functions to call as each async API call completes.
     // console.log('submit event');
     var fd = new FormData(a.$form[0]);
-    fd.append('sessionId', sessionId);
-    fd.append('clientId', clientId);
+    fd.append('sessionId', a.one2editSession.sessionId);
+    fd.append('clientId', a.one2editSession.clientId);
     fd.append('command', 'asset.upload');
-    fd.append('projectId', projectId);
+    fd.append('projectId', a.one2editSession.projectId);
     fd.append('folderIdentifier', '/UploadedPackages');
     realSuccess = function(a) {
       // console.log('submitForm: success: data:', a.$xml[0]);
@@ -138,7 +236,7 @@ var L$ = (function(my) {
   my.doUnzipAtServer = function(a) {
     my.callServer(a, {
       command: 'asset.extract',
-      projectId: projectId, // that is the assset project
+      projectId: a.one2editSession.projectId, // that is the asset project
       identifier: a.zipFileIdentifier, // left behind by the upload command
       remove: true // we definitely want to remove the zip file
     }, function(a) {
@@ -162,7 +260,7 @@ var L$ = (function(my) {
       callServerData = {
         command: 'asset.list',
         folderIdentifier: folderIdentifier,
-        projectId: projectId
+        projectId: a.one2editSession.projectId
       };
       // console.log('searchForInddFile: Folder: ', folderIdentifier, ' ', callServerData);
 
@@ -198,9 +296,9 @@ var L$ = (function(my) {
     // console.log('doCreateProject: with asset:', assetIdentifier);
     my.callServer(a, {
       command: 'document.link',
-      assetProjectId: projectId,
+      assetProjectId: a.one2editSession.projectId,
       assetIdentifier: assetIdentifier,
-      folderId: uploadedMastersFolderId // where to create the new document
+      folderId: a.one2editSession.uploadedMastersFolderId // where to create the new document
     }, function(a) {
       // console.log('doCreateProject: success: ', a.$xml[0]);
       a.$document = a.$xml.find('document');
@@ -280,8 +378,8 @@ var L$ = (function(my) {
       parameters: { wmode: 'opaque' },
       flashvars: {
         server: baseURL,
-        sessionId: sessionId, // A sessionId is returned when we authenticate a user (see API example)
-        clientId: clientId, // Id of our Client Workspace
+        sessionId: a.one2editSession.sessionId, // A sessionId is returned when we authenticate a user (see API example)
+        clientId: a.one2editSession.clientId, // Id of our Client Workspace
         idleTimeout: 900,
         editor: {
           closeBehavior: one2edit.editor.CLOSE_BEHAVIOR_LOGOUT,
@@ -304,7 +402,7 @@ var L$ = (function(my) {
     });
   };
 
-  my.editJob = function(a) { // open the editor for teh tempalte job specified by jobId
+  my.editJob = function(a) { // open the editor for the template job specified by jobId
     console.log('editJob: jobId: ', a.jobId);
     openFlash(a, {
       flashvars: {
@@ -317,10 +415,17 @@ var L$ = (function(my) {
 
 
   my.logoutFromServer = function(a) {
-    my.callServer(a, {
-      command: 'user.session.quit'
-    });
+    if ((typeof a != 'undefined') && (typeof a.one2editSession != 'undefined') && (typeof a.one2editSession.sessionId != 'undefined') && (a.one2editSession.sessionId != '')) {
+      my.callServer(a, {
+        command: 'user.session.quit'
+      },
+      function(a) {
+        delete a.one2editSession; // note that the session is finished.
+        passOn(a);
+      });
+    }
   }
+
 
   function findTemplatelessWorkflow1(a) {
     a.folderName = 'UploadedWorkflows';

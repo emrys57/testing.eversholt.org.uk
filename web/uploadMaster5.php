@@ -13,11 +13,12 @@
   <script src="callServer2.js"></script>
   <?php
 
+require('eDebug.php');
   // NO echo() here - session is starting
 
-  require('e21session.php');
-  $username = "one2editApiTest@team.expresskcs.com";
-  $t = new One2editTalker($username, TRUE); // does one2edit login always, to create separate session here: always log out of this session when this page finishes.
+  // require('e21session.php');
+  // $username = "one2editApiTest@team.expresskcs.com";
+  // $t = new One2editTalker($username, TRUE); // does one2edit login always, to create separate session here: always log out of this session when this page finishes.
 
   // NOTE that above code must be run before anything else is sent to the browser. Should it be above <html>?
 
@@ -30,9 +31,9 @@
 
   exportToJavascript('wantTemplateslessJob', $wantTemplateslessJob);
   exportToJavascript('wantOpenEditor', $wantOpenEditor);
-  exportToJavascript('baseURL', $t->one2editServerBaseUrl);
-  exportToJavascript('apiUrl', $t->one2editServerApiUrl);
-  exportToJavascript('sessionId', $t->eSession->sessionId); // this is the one2edit session ID between MediaFerry server and one2edit server
+  // exportToJavascript('baseURL', $t->one2editServerBaseUrl);
+  // exportToJavascript('apiUrl', $t->one2editServerApiUrl);
+  // exportToJavascript('sessionId', $t->eSession->sessionId); // this is the one2edit session ID between MediaFerry server and one2edit server
   // not the one between the user's browser and the MediaFerry server (if such a one exists).
   // We export the sessionId to the browser so that the user can upload files direct from their machine to One2editTalker
   // without knowing the one2edit password.
@@ -40,7 +41,9 @@
   // And if we reuse the session and then log out of it, we potentially log out some other activity going on elsewhere.
   // So we should _not_ reuse one2edit sessions and should always log in afresh here. And when we have finished with the code on this
   // page we should log out. On either good or error exit, or on leaving the page.
-  exportToJavascript('clientId', $t->one2editWorkspaceId); // one2edit naming is confused, workspaceId used to be called cientId.
+  // exportToJavascript('clientId', $t->one2editWorkspaceId); // one2edit naming is confused, workspaceId used to be called cientId.
+
+  exportToJavascript('new21sessionUrl', 'new21session.php'); // the new21session.php web service will be in the same folder as the one this php came from.
   ?>
 
   <style>
@@ -81,75 +84,41 @@
     </form>
     <div id='progressText'>
     </div>
-    <!-- This code here, which is all initially hidden, displays the progress of the operation. -->
-    <div id='display'>
-      <div class='uploading progress'>
-        <div>Uploading File:</div>
-        <div class='errorReturned'> Error: Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
-        <div class='success'> Success! </div>
-      </div>
-      <div class='unzipping progress'>
-        <div>Unzipping Archive File at Server:</div>
-        <div class='errorReturned'> Error: Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
-        <div class='success'> Success! </div>
-      </div>
-      <div class='createProject progress'>
-        <div>Creating Project at Server:</div>
-        <div class='errorReturned'> Error: Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
-        <div class='success'> Success! </div>
-      </div>
-      <div class='addContentGroup progress'>
-        <div>Adding Content Group at Server:</div>
-        <div class='errorReturned'> Error: Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
-        <div class='success'> Success! </div>
-      </div>
-      <div class='populateContentGroup progress'>
-        <div>Populate Content Group at Server:</div>
-        <div class='errorReturned'> Error: Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
-        <div class='success'> Success! </div>
-        <div class='noEditableContent progress'>NO EDITABLE CONTENT☹️</div>
-      </div>
-      <div class='moveItemsToContentGroup progress'>
-        <div>Moving Items to Editable Content Group at Server:</div>
-        <div class='errorReturned'> Error: Code: <span class='code'>undefined</span> Message: <span class='message'>undefined too</span></div>
-        <div class='success'> Success! </div>
-      </div>
-    </div>
-  </div>
+
   <div id='flashDiv' class='one2edit' style='display:none'>
     <div id="flashContent"> </div>
   </div>
 
   <?php
   // Find the Project Folder '/UploadedMasters'
-  $data = ['command'=>'document.folder.list', 'id'=>1, 'depth'=>1]; // list all folders in folder 1, which is the document folder
-  $serverResponse = $t->talk($data); // serverResponse has been converted to an array
-  if ($serverResponse === FALSE) { exit(); } // turn on debug messages if you want to see info from talk()
-  if (isset($serverResponse['folders']['folder']) and has_string_keys($serverResponse['folders']['folder'])) { // then there is only one folder and it is not in an array
-    $serverResponse['folders']['folder'] = [ $serverResponse['folders']['folder'] ]; // regularise the layout so even if ther eis only one folder it is in an indexed array
-  }
-  if (!isset($serverResponse['folders']['folder'][0][id])) { debug(1, 'Cannot find any folders.'); if (debug(1)) { var_dump($serverResponse); echo('<br />'); } exit(); }
-  $folders = $serverResponse['folders']['folder'];
-  foreach ($folders as $folder) {
-    if (isset($folder['id']) and isset($folder['name']) and ($folder['name'] == 'UploadedMasters')) {
-      $uploadedMastersFolderId = $folder['id'];
-    }
-  }
-  // echo('Found UploadedMasters Project Folder id='.$uploadedMastersFolderId.'<br />');
-
-  // For the one2edit asset space, we don't need to find the folder ID, because the API uses folder names.
-  // We upload all zip files to /UploadedPackages in the asset space, and unzip them there.
-  // But we do need to find the asset project to upload to.
-  $data = ['command'=>'asset.list'];
-  $serverResponse = $t->talk($data);
-  if ($serverResponse === FALSE) { exit(); }
-  // Can there be multiple asset spaces in one workspace? If so, the below would fail.
-  if (!isset($serverResponse['assets']['asset']['project'])) { debug(1, 'Cannot find any asset project.'); exit(); }
-  $assetProject = $serverResponse['assets']['asset']['project'];
-  // echo("Found asset project number: $assetProject<br />");
-
-  exportToJavascript('uploadedMastersFolderId', $uploadedMastersFolderId);
-  exportToJavascript('projectId', $assetProject);
+  // $data = ['command'=>'document.folder.list', 'id'=>1, 'depth'=>1]; // list all folders in folder 1, which is the document folder
+  // $serverResponse = $t->talk($data); // serverResponse has been converted to an array
+  // if ($serverResponse === FALSE) { exit(); } // turn on debug messages if you want to see info from talk()
+  // if (isset($serverResponse['folders']['folder']) and has_string_keys($serverResponse['folders']['folder'])) { // then there is only one folder and it is not in an array
+  //   $serverResponse['folders']['folder'] = [ $serverResponse['folders']['folder'] ]; // regularise the layout so even if ther eis only one folder it is in an indexed array
+  // }
+  // if (!isset($serverResponse['folders']['folder'][0][id])) { debug(1, 'Cannot find any folders.'); if (debug(1)) { var_dump($serverResponse); echo('<br />'); } exit(); }
+  // $folders = $serverResponse['folders']['folder'];
+  // foreach ($folders as $folder) {
+  //   if (isset($folder['id']) and isset($folder['name']) and ($folder['name'] == 'UploadedMasters')) {
+  //     $uploadedMastersFolderId = $folder['id'];
+  //   }
+  // }
+  // // echo('Found UploadedMasters Project Folder id='.$uploadedMastersFolderId.'<br />');
+  //
+  // // For the one2edit asset space, we don't need to find the folder ID, because the API uses folder names.
+  // // We upload all zip files to /UploadedPackages in the asset space, and unzip them there.
+  // // But we do need to find the asset project to upload to.
+  // $data = ['command'=>'asset.list'];
+  // $serverResponse = $t->talk($data);
+  // if ($serverResponse === FALSE) { exit(); }
+  // // Can there be multiple asset spaces in one workspace? If so, the below would fail.
+  // if (!isset($serverResponse['assets']['asset']['project'])) { debug(1, 'Cannot find any asset project.'); exit(); }
+  // $assetProject = $serverResponse['assets']['asset']['project'];
+  // // echo("Found asset project number: $assetProject<br />");
+  //
+  // exportToJavascript('uploadedMastersFolderId', $uploadedMastersFolderId);
+  // exportToJavascript('projectId', $assetProject);
   ?>
 
   <script type="text/javascript">
@@ -210,7 +179,16 @@
     },
     onApiResponse: function(a, event) {
       console.log('callServer: onApiResponse: ', a.$xml[0]);
-    }
+    },
+    loginFailed: function(a, event) {
+      $('#progressText').append('FAILED TO LOG IN to server. ');
+    },
+    uploadedMastersFolder: function(a, event) {
+      $('#progressText').append('Cannot find uploaded masters folder at server. ');
+    },
+    assetProject: function(a, event) {
+      $('#progressText').append('Cannot find asset project ID. ');
+    },
   };
 
   function submitForm2() { // called when submit button is pressed on form
@@ -224,22 +202,40 @@
     return false; // MUST return false or chaos ensues, browser reloads with POST.
   }
 
+  var callSequenceEdit = [
+    // open the Flash editor knwing the document project Id. a.documentId must be the document Proejct Id.
+    {f:L$.editDocument, stage: 'Editing Document'},
+    {f:regainControl, stage: 'Returning to calling code'}
+  ];
+
+  function regainControl(a) {
+    // this function is here to demonstrate that control has returned from async chained API calls to ordinary website code.
+    console.log('regainControl: Control regained 😀');
+    $('#progressText').append('<br />Control has been regained.<br />');
+  }
+
   $(document).ready(function() {
 
     // definitely have to use .ready() here or all is chaos
     // because otherwise this code tries to run before callServer.js has loaded and the L$ library is a complete mess.
+    // L$.logoutFromServer({}); // have already established one2edit session in old code. Log  out that session, force a new one to test new code.
 
     $(window).on('unload', function(){ console.log('unload running'); L$.logoutFromServer({}); }) // Must logout on leaving this page or we'll run out of one2edit licences.
 
     // This sequence is handled in order by the library API calls in callServer.js
     callSequence0 = [
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.findAssetProjectId, stage: 'Finding Asset Project ID'},
       {f:L$.submitForm, stage:'Uploading zip file'},
       {f:L$.doUnzipAtServer, stage:'Unzipping file'},
       {f:L$.doSearchForInddFile, stage:'Searching for InDesign file'},
+      {f:L$.findUploadedMastersFolderId, stage: 'Finding UploadedMasters folder'},
       {f:L$.doCreateProject, stage:'Creating editable document from InDesign file'},
       {f:L$.doAddContentGroup, stage:'Creating the Editable Content Group'},
       {f:L$.doPopulateContentGroup, stage:'Moving content into the Editable Content Group'}
     ];
+
+
 
     if (wantOpenEditor) { callSequence0.push({f:L$.editDocument, stage: 'Editing Document'}); }
     if (wantTemplateslessJob) { callSequence0.push({f:L$.startTemplatelessTemplateJob, stage: 'Starting templateless template job'}); } // NOTE executing this later will change the value of a.callSequence
