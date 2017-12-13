@@ -58,6 +58,11 @@ require('eDebug.php');
       <input type='text' name='documentId' class='masterDocumentId documentId' required />
       <input type='submit' value='Edit Document'/>
     </form>
+    <form id='downloadPdfForm' onsubmit='return submitDownloadPdfForm($("#downloadPdfForm"));'>
+      Document ID:<br />
+      <input type='text' name='documentId' class='masterDocumentId documentId' required />
+      <input type='submit' value='Download PDF'/>
+    </form>
     <div id='progressText'>
     </div>
   </div>
@@ -162,6 +167,16 @@ require('eDebug.php');
     return false; // MUST return false or chaos ensues.
   }
 
+  function submitDownloadPdfForm($form) {
+    var a = {
+      callSequence: pdfCallSequence,
+      documentId: $form.find('.documentId').val(),
+      genericEvents: genericEvents
+    }
+    L$.startSequence(a);
+    return false; // MUST return false or chaos ensues.
+  }
+
   var callSequenceEdit = [
     // open the Flash editor knwing the document project Id. a.documentId must be the document Proejct Id.
     {f:L$.editDocument, stage: 'Editing Document'},
@@ -206,6 +221,12 @@ require('eDebug.php');
     editCallSequence = [
         {f:L$.startSession, stage: 'Logging In'},
         {f:L$.editDocument, stage: 'Editing Document'} // ending this does logout anyway
+    ]
+
+    pdfCallSequence = [
+          {f:L$.startSession, stage: 'Logging In'},
+          {f:L$.downloadPdf, stage: 'Downloading PDF'},
+          {f:L$.logoutFromServer, stage:'Logging out from server'}
     ]
 
     // if (wantTemplateslessJob) { callSequence0.push({f:L$.startTemplatelessTemplateJob, stage: 'Starting templateless template job'}); } // NOTE executing this later will change the value of a.callSequence

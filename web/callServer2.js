@@ -59,7 +59,9 @@ var L$ = (function(my) {
       }
     }
     // handle the special case of 'sequenceDone' which happens even though a.callSequence[a.sequenceIndex].f is undefined
-    if (event == 'sequenceDone') { (a.genericEvents[event])(a, event, optionalExtras); }
+    if ((event == 'sequenceDone') && (typeof a != 'undefined') && (typeof a.genericEvents != 'undefined') && (typeof a.genericEvents[event] != 'undefined')) {
+      (a.genericEvents[event])(a, event, optionalExtras);
+    }
   }
 
   my.startSession = function(a) {
@@ -72,7 +74,7 @@ var L$ = (function(my) {
       type: "POST",
       data: myData,
       error: function(jqXHR, textStatus, errorThrown) {
-        console.log('callServer: ajax error: textStatus: ', textStatus, 'errorThrown: ', errorThrown, ' jqXHR: ', jqXHR);
+        console.log('startSession: ajax error: textStatus: ', textStatus, 'errorThrown: ', errorThrown, ' jqXHR: ', jqXHR);
         if (typeof a.onAjaxError == 'function') { // optionally signal ajax error to calling function.
           (a.onAjaxError(a, jqXHR, textStatus, errorThrown));
         }
@@ -339,6 +341,54 @@ var L$ = (function(my) {
         passOn(a);
       });
     });
+  }
+
+  my.downloadPdf = function(a) {
+    // How do I log out of this session when downloading PDF?
+    // If I log out instantly, then the new tab I have just opened will not have a valid sessionId.
+    // Setting a timemout doesn't work because the session is checked both at the start of the operation and the end.
+    // I could send the username and password but I have been desperately trying to avoid that.
+    // Create a new session and use that? And hope it doesn't use edit licences?
+
+    function startDownload(a3) {
+      // start the download once we have a new session
+      var url = a3.one2editSession.apiUrl;
+      var parameters = { // document.export.pdf&authDomain=local&clientId=123&id=1&result=asset&assetProjectId=123&assetFolderIdentifier=tmp&assetName=file.pdf
+        command: 'document.export.pdf',
+        authDomain: 'local',
+        clientId: a3.one2editSession.clientId,
+        id: a3.documentId,
+        result: 'file',
+        sessionId: a3.one2editSession.sessionId
+      }
+      p2 = [];
+      Object.keys(parameters).forEach(function(e) { p2.push(encodeURIComponent(e)+'='+encodeURIComponent(parameters[e])); })
+      url += '?' + p2.join('&');
+      console.log('startDownload: url: ', url);
+      window.open(url,'_blank');
+      window.focus(); // https://stackoverflow.com/questions/7924232/how-to-open-new-tab-in-javascript-without-switching-to-the-new-tab
+      passOn(a3);
+    }
+
+    function goBackToFirstSequence(a4) {
+      // pick up the first sequence from the enclosing function scope, and restart that. Unbelievably, it works perfectly.
+      // this is how you do subroutines using this callSequence idea.
+      // I could actually do this quite neatly. Have a push and pop operation on `a`.
+      passOn(a); // a, not a4
+    }
+    
+    var a2 = {
+      callSequence: [
+        {f:my.startSession, stage:'Logging in second session'},
+        {f:startDownload, stage:'starting download in second session'}, // and then do not log out
+        {f:goBackToFirstSequence, stage:'going back to first sequence'}
+      ],
+      username: a.one2editSession.username,
+      genericEvents: a.genericEvents,
+      documentId: a.documentId
+    }
+    my.startSequence(a2);
+    console.log('downloadPdf: started second sequence: a2:', a2); // never reaches here!
   }
 
   function openFlash(a, ap) { // open the Flash editor
