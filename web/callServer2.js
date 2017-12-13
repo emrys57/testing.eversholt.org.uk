@@ -344,6 +344,16 @@ var L$ = (function(my) {
   }
 
   my.downloadPdf = function(a) {
+    a.downloadCommand = 'document.export.pdf';
+    downloadFile(a);
+  }
+
+  my.downloadPackage = function(a) {
+    a.downloadCommand = 'document.export.package';
+    downloadFile(a);
+  }
+
+  function downloadFile(a) {
     // How do I log out of this session when downloading PDF?
     // If I log out instantly, then the new tab I have just opened will not have a valid sessionId.
     // Setting a timemout doesn't work because the session is checked both at the start of the operation and the end.
@@ -354,7 +364,7 @@ var L$ = (function(my) {
       // start the download once we have a new session
       var url = a3.one2editSession.apiUrl;
       var parameters = { // document.export.pdf&authDomain=local&clientId=123&id=1&result=asset&assetProjectId=123&assetFolderIdentifier=tmp&assetName=file.pdf
-        command: 'document.export.pdf',
+        command: a3.downloadCommand,
         authDomain: 'local',
         clientId: a3.one2editSession.clientId,
         id: a3.documentId,
@@ -376,7 +386,7 @@ var L$ = (function(my) {
       // I could actually do this quite neatly. Have a push and pop operation on `a`.
       passOn(a); // a, not a4
     }
-    
+
     var a2 = {
       callSequence: [
         {f:my.startSession, stage:'Logging in second session'},
@@ -385,7 +395,8 @@ var L$ = (function(my) {
       ],
       username: a.one2editSession.username,
       genericEvents: a.genericEvents,
-      documentId: a.documentId
+      documentId: a.documentId,
+      downloadCommand: a.downloadCommand
     }
     my.startSequence(a2);
     console.log('downloadPdf: started second sequence: a2:', a2); // never reaches here!

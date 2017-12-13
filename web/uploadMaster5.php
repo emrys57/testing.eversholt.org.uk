@@ -63,6 +63,11 @@ require('eDebug.php');
       <input type='text' name='documentId' class='masterDocumentId documentId' required />
       <input type='submit' value='Download PDF'/>
     </form>
+    <form id='downloadPackageForm' onsubmit='return submitDownloadPackageForm($("#downloadPackageForm"));'>
+      Document ID:<br />
+      <input type='text' name='documentId' class='masterDocumentId documentId' required />
+      <input type='submit' value='Download InDesign Package zip file'/>
+    </form>
     <div id='progressText'>
     </div>
   </div>
@@ -177,6 +182,16 @@ require('eDebug.php');
     return false; // MUST return false or chaos ensues.
   }
 
+  function submitDownloadPackageForm($form) {
+    var a = {
+      callSequence: packageCallSequence,
+      documentId: $form.find('.documentId').val(),
+      genericEvents: genericEvents
+    }
+    L$.startSequence(a);
+    return false; // MUST return false or chaos ensues.
+  }
+
   var callSequenceEdit = [
     // open the Flash editor knwing the document project Id. a.documentId must be the document Proejct Id.
     {f:L$.editDocument, stage: 'Editing Document'},
@@ -226,6 +241,12 @@ require('eDebug.php');
     pdfCallSequence = [
           {f:L$.startSession, stage: 'Logging In'},
           {f:L$.downloadPdf, stage: 'Downloading PDF'},
+          {f:L$.logoutFromServer, stage:'Logging out from server'}
+    ]
+
+    packageCallSequence = [
+          {f:L$.startSession, stage: 'Logging In'},
+          {f:L$.downloadPackage, stage: 'Downloading PDF'},
           {f:L$.logoutFromServer, stage:'Logging out from server'}
     ]
 
