@@ -53,20 +53,14 @@ require('eDebug.php');
       <input type="file" name="data" accept=".zip" required />
       <input type="submit" value="Upload Zip File" />
     </form>
-    <form id='editMasterForm' onsubmit='return submitEditMasterForm($("#editMasterForm"));'>
+    <form id='documentForm' onsubmit='return submitDocumentForm($("#documentForm"));'>
       Document ID:<br />
       <input type='text' name='documentId' class='masterDocumentId documentId' required />
-      <input type='submit' value='Edit Document'/>
-    </form>
-    <form id='downloadPdfForm' onsubmit='return submitDownloadPdfForm($("#downloadPdfForm"));'>
-      Document ID:<br />
-      <input type='text' name='documentId' class='masterDocumentId documentId' required />
-      <input type='submit' value='Download PDF'/>
-    </form>
-    <form id='downloadPackageForm' onsubmit='return submitDownloadPackageForm($("#downloadPackageForm"));'>
-      Document ID:<br />
-      <input type='text' name='documentId' class='masterDocumentId documentId' required />
-      <input type='submit' value='Download InDesign Package zip file'/>
+      <input type='submit' data-operation='editDocument' value='Edit Document'/>
+      <input type='submit' data-operation='downloadPdf' value='Download PDF'/>
+      <input type='submit' data-operation='downloadPackage' value='Download InDesign Package zip file'/>
+      <input type='submit' data-operation='storePdf' value='Store PDF at MediaFerry server'/>
+      <input type='submit' data-operation='storePackage' value='Store InDesign Package zip file at Mediaferry Server'/>
     </form>
     <div id='progressText'>
     </div>
@@ -162,12 +156,44 @@ require('eDebug.php');
     return false; // MUST return false or chaos ensues, browser reloads with POST.
   }
 
-  function submitEditMasterForm($form) {
+  function submitDocumentForm($form) {
+    // generic handler for various submit buttons on one form.
+    var $button = $(document.activeElement); // https://stackoverflow.com/questions/2066162/how-can-i-get-the-button-that-caused-the-submit-from-the-form-submit-event
+    operation = $button.data('operation');
+    console.log('submitDocumentForm: button: ', $button[0], '; operation: ', operation);
     var a = {
-      callSequence: editCallSequence,
       documentId: $form.find('.documentId').val(),
       genericEvents: genericEvents
     }
+    delete a.store;
+    switch (operation) {
+      case 'editDocument':
+      a.callSequence = editCallSequence;
+      break;
+      case 'downloadPdf': // to browser
+      a.callSequence = pdfCallSequence;
+      break;
+      case 'downloadPackage':
+      a.callSequence = packageCallSequence;
+      break;
+      case 'storePdf':
+      a.callSequence = storeCallSequence;
+      a.store = {
+        documentId: a.documentId,
+        fileType: 'pdf'
+      }
+      break;
+      case 'storePackage':
+      a.callSequence = storeCallSequence;
+      a.store = {
+        documentId: a.documentId,
+        fileType: 'package'
+      }
+      break;
+      default:
+      break;
+    }
+
     L$.startSequence(a);
     return false; // MUST return false or chaos ensues.
   }
@@ -248,6 +274,10 @@ require('eDebug.php');
           {f:L$.startSession, stage: 'Logging In'},
           {f:L$.downloadPackage, stage: 'Downloading PDF'},
           {f:L$.logoutFromServer, stage:'Logging out from server'}
+    ]
+
+    storeCallSequence = [
+      {f:L$.storeFileAtMediaFerryServer, stage: 'Storing File at MediaFerry Server'}
     ]
 
     // if (wantTemplateslessJob) { callSequence0.push({f:L$.startTemplatelessTemplateJob, stage: 'Starting templateless template job'}); } // NOTE executing this later will change the value of a.callSequence

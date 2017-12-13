@@ -140,6 +140,7 @@ var L$ = (function(my) {
     // `a` contains the session info and is used for logging and progress calls.
     // `moreAjaxStuff`, if present, is extra info to be added to the Ajax call.
 
+
     var myData = {
       sessionId: a.one2editSession.sessionId,
       clientId: a.one2editSession.clientId
@@ -343,6 +344,27 @@ var L$ = (function(my) {
     });
   }
 
+ my.storeFileAtMediaFerryServer = function(a) {
+   a.one2editSession = {}; // have to have an empty session if I am to use callServer
+   if (typeof a.store != 'object') { a.store = {}; } // that would be a bug
+   var extension = '';
+   if (a.store.fileType == 'pdf') { extension = '.pdf'; }
+   if (a.store.fileType == 'package') { extension = '.zip'; }
+   var myData = {
+     fileType: a.store.fileType,
+     documentId: a.store.documentId,
+     filename: 'document'+a.store.documentId+extension
+   }
+   my.callServer(a, {}, function(a){
+     a.store.storedFilePathAtMediaFerry = a.$xml.find('filePath').text();
+     console.log('downloadFileToMediaFerryServer: downloadedFilePathAtMediaFerry: ', a.store.storedFilePathAtMediaFerry);
+     passOn(a);
+   }, {
+     data: myData,
+     url:'fetchFile.php'
+   });
+ }
+
   my.downloadPdf = function(a) {
     a.downloadCommand = 'document.export.pdf';
     downloadFile(a);
@@ -359,6 +381,9 @@ var L$ = (function(my) {
     // Setting a timemout doesn't work because the session is checked both at the start of the operation and the end.
     // I could send the username and password but I have been desperately trying to avoid that.
     // Create a new session and use that? And hope it doesn't use edit licences?
+
+    // This seems to work, but downloads the files to the user's workstation instead of to the mediaferry server.
+    // I need separate functions to store teh result at the MediaFerry server
 
     function startDownload(a3) {
       // start the download once we have a new session
