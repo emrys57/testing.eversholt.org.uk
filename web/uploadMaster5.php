@@ -189,6 +189,9 @@ require('eDebug.php');
     assetProject: function(a, event) {
       $('#progressText').append('Cannot find asset project ID. ');
     },
+    sequenceDone:function(a,event) {
+        $('#progressText').append('All finished OK.');
+    }
   };
 
   function submitForm2() { // called when submit button is pressed on form

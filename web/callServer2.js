@@ -40,19 +40,24 @@ var L$ = (function(my) {
     if ($.isArray(a.callSequence) && (typeof a.sequenceIndex != 'undefined') && (typeof a.callSequence[a.sequenceIndex] != 'undefined') && (typeof a.callSequence[a.sequenceIndex].f == 'function')) {
       maybeProgress(a, 'beforeStart');
       (a.callSequence[a.sequenceIndex].f)(a);
-    } else { console.log('No more to do in sequence, finished.'); }
+    } else {
+      console.log('No more to do in sequence, finished.');
+      maybeProgress(a, 'sequenceDone');
+    }
   }
 
   function maybeProgress(a, event, optionalExtras) {
     // if a handler is defined for the current event in the call sequence, execute it.
     // If it's not defined, look for a generic handler.
-    if ((typeof a != 'undefined') && (typeof a.sequenceIndex != 'undefined') && (typeof a.callSequence != 'undefined ')&& (typeof a.callSequence[a.sequenceIndex] != 'undefined')) { // cope with sequenceIndex undefined, or off either end of array
+    if ((typeof a != 'undefined') && (typeof a.sequenceIndex != 'undefined') && (typeof a.callSequence != 'undefined ') && (typeof a.callSequence[a.sequenceIndex] != 'undefined')) { // cope with sequenceIndex undefined, or off either end of array
       if (typeof (a.callSequence[a.sequenceIndex])[event]== 'function') {
         ((a.callSequence[a.sequenceIndex])[event])(a, event, optionalExtras);
       } else if ((typeof a.callSequence[a.sequenceIndex].f == 'function') && (typeof a.genericEvents != 'undefined') && (typeof a.genericEvents[event] == 'function')) {
         (a.genericEvents[event])(a, event, optionalExtras);
       }
     }
+    // handle the special case of 'sequenceDone' which happens even though a.callSequence[a.sequenceIndex].f is undefined
+    if (event == 'sequenceDone') { (a.genericEvents[event])(a, event, optionalExtras); }
   }
 
   my.startSession = function(a) {
@@ -81,35 +86,7 @@ var L$ = (function(my) {
           maybeProgress(a, 'loginFailed');
           return;
         }
-        // my.callServer(a, {
-        //   command:'document.folder.list',
-        //   id:1, // the root document folder
-        //   depth:1
-        // }, function(a) {
-        //   var selector = 'name:contains('+uploadedMastersFolderName+')'
-        //   var $folders = a.$xml.find('folder').children(selector).parent();
-        //   $folders.each(function(i,e) {
-        //     // this makes sure we don't have multiple folders containg this text.
-        //     $folder = $(e);
-        //     if ($folder.children('name').text() == uploadedMastersFolderName) { a.one2editSession.uploadedMastersFolderId = $folder.children('id').text(); }
-        //   });
-        //   if (typeof a.one2editSession.uploadedMastersFolderId == 'undefined') {
-        //     console.log('startSession: folder not found: ', '/'+uploadedMastersFolderName);
-        //     maybeProgress(a, 'uploadedMastersFolder');
-        //     return;
-        //   }
-        //   my.callServer(a, {
-        //     command: 'asset.list'
-        //   }, function(a){
-        //     a.one2editSession.projectId = a.$xml.find('asset').first().children('project').text(); // the asset project
-        //     if (typeof a.one2editSession.projectId == 'undefined') {
-        //       console.log('startSession: asset projectId not found.');
-        //       maybeProgress(a, 'assetProject');
-        //       return;
-        //     }
         passOn(a);
-        //   });
-        // });
       }
     });
   };
@@ -156,7 +133,7 @@ var L$ = (function(my) {
     // the 'realSuccess' function is only called if the server does not return an error code.
     // 'data' is an array of the parameters to pass to the server.
     // callServer automatically adds the sessionId and workspaceId to data.
-    // `a` contains teh session info and is sued for logging and progress calls.
+    // `a` contains the session info and is used for logging and progress calls.
     // `moreAjaxStuff`, if present, is extra info to be added to the Ajax call.
 
     var myData = {
@@ -194,9 +171,7 @@ var L$ = (function(my) {
         }
       }
     }
-    if (typeof moreAjaxStuff == 'object') {
-      $.extend(ajaxCallObject, moreAjaxStuff);
-    }
+    if (typeof moreAjaxStuff == 'object') { $.extend(ajaxCallObject, moreAjaxStuff); }
     maybeProgress(a, 'beforeApiCall', ajaxCallObject);
     // console.log('callServer: beforeApiCall:', ajaxCallObject);
     $.ajax(ajaxCallObject);
