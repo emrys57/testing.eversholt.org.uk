@@ -9,39 +9,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://demo.one2edit.com/scripts/one2edit.js"></script>
   <script src="https://code.jquery.com/jquery-3.2.1.js"></script>
-  <script src="dismiss.js"></script>
   <script src="callServer2.js"></script>
   <?php
 
 require('eDebug.php');
-  // NO echo() here - session is starting
-
-  // require('e21session.php');
-  // $username = "one2editApiTest@team.expresskcs.com";
-  // $t = new One2editTalker($username, TRUE); // does one2edit login always, to create separate session here: always log out of this session when this page finishes.
-
-  // NOTE that above code must be run before anything else is sent to the browser. Should it be above <html>?
-
-  function get01($name) {
-    // https://stackoverflow.com/questions/3384942/true-in-get-variables#3384973
-    return filter_input(INPUT_GET, $name, FILTER_VALIDATE_BOOLEAN, array("flags" => FILTER_NULL_ON_FAILURE)) ? 1 : 0;
-  }
-  $wantOpenEditor = get01('open');
-  $wantTemplateslessJob = get01('templateless');
-
-  exportToJavascript('wantTemplateslessJob', $wantTemplateslessJob);
-  exportToJavascript('wantOpenEditor', $wantOpenEditor);
-  // exportToJavascript('baseURL', $t->one2editServerBaseUrl);
-  // exportToJavascript('apiUrl', $t->one2editServerApiUrl);
-  // exportToJavascript('sessionId', $t->eSession->sessionId); // this is the one2edit session ID between MediaFerry server and one2edit server
-  // not the one between the user's browser and the MediaFerry server (if such a one exists).
-  // We export the sessionId to the browser so that the user can upload files direct from their machine to One2editTalker
-  // without knowing the one2edit password.
-  // But, hang on! If the PHP code reused any existing session, that session could be a different one2edit user!
-  // And if we reuse the session and then log out of it, we potentially log out some other activity going on elsewhere.
-  // So we should _not_ reuse one2edit sessions and should always log in afresh here. And when we have finished with the code on this
-  // page we should log out. On either good or error exit, or on leaving the page.
-  // exportToJavascript('clientId', $t->one2editWorkspaceId); // one2edit naming is confused, workspaceId used to be called cientId.
 
   exportToJavascript('new21sessionUrl', 'new21session.php'); // the new21session.php web service will be in the same folder as the one this php came from.
   ?>
@@ -82,44 +53,18 @@ require('eDebug.php');
       <input type="file" name="data" accept=".zip" required />
       <input type="submit" value="Upload Zip File" />
     </form>
+    <form id='editMasterForm' onsubmit='return submitEditMasterForm($("#editMasterForm"));'>
+      Document ID:<br />
+      <input type='text' name='documentId' class='masterDocumentId documentId' required />
+      <input type='submit' value='Edit Document'/>
+    </form>
     <div id='progressText'>
     </div>
+  </div>
 
   <div id='flashDiv' class='one2edit' style='display:none'>
     <div id="flashContent"> </div>
   </div>
-
-  <?php
-  // Find the Project Folder '/UploadedMasters'
-  // $data = ['command'=>'document.folder.list', 'id'=>1, 'depth'=>1]; // list all folders in folder 1, which is the document folder
-  // $serverResponse = $t->talk($data); // serverResponse has been converted to an array
-  // if ($serverResponse === FALSE) { exit(); } // turn on debug messages if you want to see info from talk()
-  // if (isset($serverResponse['folders']['folder']) and has_string_keys($serverResponse['folders']['folder'])) { // then there is only one folder and it is not in an array
-  //   $serverResponse['folders']['folder'] = [ $serverResponse['folders']['folder'] ]; // regularise the layout so even if ther eis only one folder it is in an indexed array
-  // }
-  // if (!isset($serverResponse['folders']['folder'][0][id])) { debug(1, 'Cannot find any folders.'); if (debug(1)) { var_dump($serverResponse); echo('<br />'); } exit(); }
-  // $folders = $serverResponse['folders']['folder'];
-  // foreach ($folders as $folder) {
-  //   if (isset($folder['id']) and isset($folder['name']) and ($folder['name'] == 'UploadedMasters')) {
-  //     $uploadedMastersFolderId = $folder['id'];
-  //   }
-  // }
-  // // echo('Found UploadedMasters Project Folder id='.$uploadedMastersFolderId.'<br />');
-  //
-  // // For the one2edit asset space, we don't need to find the folder ID, because the API uses folder names.
-  // // We upload all zip files to /UploadedPackages in the asset space, and unzip them there.
-  // // But we do need to find the asset project to upload to.
-  // $data = ['command'=>'asset.list'];
-  // $serverResponse = $t->talk($data);
-  // if ($serverResponse === FALSE) { exit(); }
-  // // Can there be multiple asset spaces in one workspace? If so, the below would fail.
-  // if (!isset($serverResponse['assets']['asset']['project'])) { debug(1, 'Cannot find any asset project.'); exit(); }
-  // $assetProject = $serverResponse['assets']['asset']['project'];
-  // // echo("Found asset project number: $assetProject<br />");
-  //
-  // exportToJavascript('uploadedMastersFolderId', $uploadedMastersFolderId);
-  // exportToJavascript('projectId', $assetProject);
-  ?>
 
   <script type="text/javascript">
 
@@ -162,17 +107,19 @@ require('eDebug.php');
     adjustDisplayForFlash: function(a) {
       $('#textDiv').hide();
       $('#flashDiv').show();
+      console.log('adjusted display for flash');
     },
     adjustDisplayAfterFlash: function(a) {
       $('#flashDiv').hide();
       $('#textDiv').show();
       window.onbeforeunload = undefined;
+      console.log('adjusted display after flash');
     },
     beforeStart: genericEvent,
     onDone: genericEvent,
     onError: genericEvent,
     noEditableLayers: function(a, event) {
-      $('#progressText').append('NO EDITABLE LAYERS! ');
+      $('#progressText').append('NO EDITABLE LAYERS! <br />');
     },
     beforeApiCall: function(a, event, ajaxCallObject) {
       console.log('callServer: beforeApiCall: ', ajaxCallObject);
@@ -181,21 +128,21 @@ require('eDebug.php');
       console.log('callServer: onApiResponse: ', a.$xml[0]);
     },
     loginFailed: function(a, event) {
-      $('#progressText').append('FAILED TO LOG IN to server. ');
+      $('#progressText').append('FAILED TO LOG IN to server. <br />');
     },
     uploadedMastersFolder: function(a, event) {
-      $('#progressText').append('Cannot find uploaded masters folder at server. ');
+      $('#progressText').append('Cannot find uploaded masters folder at server. <br />');
     },
     assetProject: function(a, event) {
-      $('#progressText').append('Cannot find asset project ID. ');
+      $('#progressText').append('Cannot find asset project ID. <br />');
     },
     sequenceDone:function(a,event) {
-        $('#progressText').append('All finished OK.');
+        $('#progressText').append('All finished OK.<br />');
     }
   };
 
   function submitForm2() { // called when submit button is pressed on form
-    a = {
+    var a = {
       // this object is the initial value of 'a' which is passed through all the library functions.
       $form:$('#fileUploadForm'),
       callSequence: callSequence0,
@@ -203,6 +150,16 @@ require('eDebug.php');
     };
     L$.startSequence(a);
     return false; // MUST return false or chaos ensues, browser reloads with POST.
+  }
+
+  function submitEditMasterForm($form) {
+    var a = {
+      callSequence: editCallSequence,
+      documentId: $form.find('.documentId').val(),
+      genericEvents: genericEvents
+    }
+    L$.startSequence(a);
+    return false; // MUST return false or chaos ensues.
   }
 
   var callSequenceEdit = [
@@ -215,6 +172,11 @@ require('eDebug.php');
     // this function is here to demonstrate that control has returned from async chained API calls to ordinary website code.
     console.log('regainControl: Control regained 😀');
     $('#progressText').append('<br />Control has been regained.<br />');
+  }
+
+  function setDocumentId(a) {
+    $('.documentId').val(a.documentId);
+    L$.passOn(a);
   }
 
   $(document).ready(function() {
@@ -235,13 +197,18 @@ require('eDebug.php');
       {f:L$.findUploadedMastersFolderId, stage: 'Finding UploadedMasters folder'},
       {f:L$.doCreateProject, stage:'Creating editable document from InDesign file'},
       {f:L$.doAddContentGroup, stage:'Creating the Editable Content Group'},
-      {f:L$.doPopulateContentGroup, stage:'Moving content into the Editable Content Group'}
+      {f:L$.doPopulateContentGroup, stage:'Moving content into the Editable Content Group'},
+      {f:setDocumentId, stage:'Setting Document ID'},
+      {f:L$.logoutFromServer, stage:'Logging out from server'}
     ];
 
 
+    editCallSequence = [
+        {f:L$.startSession, stage: 'Logging In'},
+        {f:L$.editDocument, stage: 'Editing Document'} // ending this does logout anyway
+    ]
 
-    if (wantOpenEditor) { callSequence0.push({f:L$.editDocument, stage: 'Editing Document'}); }
-    if (wantTemplateslessJob) { callSequence0.push({f:L$.startTemplatelessTemplateJob, stage: 'Starting templateless template job'}); } // NOTE executing this later will change the value of a.callSequence
+    // if (wantTemplateslessJob) { callSequence0.push({f:L$.startTemplatelessTemplateJob, stage: 'Starting templateless template job'}); } // NOTE executing this later will change the value of a.callSequence
 
   });
 

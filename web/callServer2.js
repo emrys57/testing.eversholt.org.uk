@@ -46,6 +46,8 @@ var L$ = (function(my) {
     }
   }
 
+  my.passOn = function(a) { passOn(a); } // eventually had to make it public
+
   function maybeProgress(a, event, optionalExtras) {
     // if a handler is defined for the current event in the call sequence, execute it.
     // If it's not defined, look for a generic handler.
@@ -346,13 +348,16 @@ var L$ = (function(my) {
       options: {
         onLogout: function() {
           maybeProgress(a, 'adjustDisplayAfterFlash');
+          console.log('calling one2edit.destroy');
+          one2edit.destroy();
+          console.log('called one2edit.destroy');
           passOn(a);
         }
         // perhaps do something else after closing editor and sliding window up is finished
       },
       parameters: { wmode: 'opaque' },
       flashvars: {
-        server: baseURL,
+        server: a.one2editSession.baseURL,
         sessionId: a.one2editSession.sessionId, // A sessionId is returned when we authenticate a user (see API example)
         clientId: a.one2editSession.clientId, // Id of our Client Workspace
         idleTimeout: 900,
