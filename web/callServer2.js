@@ -479,6 +479,10 @@ var L$ = (function(my) {
     });
   }
 
+  my.openAdmin = function(a) { // open the admin interface
+    openFlash(a,{}); // that's all. No editor => admin interface
+  }
+
 
   my.logoutFromServer = function(a) {
     if ((typeof a != 'undefined') && (typeof a.one2editSession != 'undefined') && (typeof a.one2editSession.sessionId != 'undefined') && (a.one2editSession.sessionId != '')) {

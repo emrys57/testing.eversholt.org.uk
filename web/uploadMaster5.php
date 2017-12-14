@@ -12,7 +12,7 @@
   <script src="callServer2.js"></script>
   <?php
 
-require('eDebug.php');
+  require('eDebug.php');
 
   exportToJavascript('new21sessionUrl', 'new21session.php'); // the new21session.php web service will be in the same folder as the one this php came from.
   ?>
@@ -37,31 +37,55 @@ require('eDebug.php');
     border-color: black;
     border-width: 1px;
   }
+  .oneForm {
+    border-width: 2px;
+    border-radius: 1vw;
+    border-color: Carbon;
+    border-style: solid;
+    background-color: #ccffff;
+    padding: 1vw;
+    padding-top:0.5vw;
+    margin: 1vw;
+  }
   </style>
 
 </head>
 <body>
   <div id='textDiv'>
-    <h2>Upload an InDesign Package to be used as a new master document</h2>
-    First, create a folder holding everything with InDesign - File - Package.
-    Then compress that folder and its files into a zip archive.
-    Then upload that zip archive.
 
-    <!--  This form here triggers off all the javascript above. Not entirely sure how! -->
-    <form method="post" id="fileUploadForm" name="fileinfo" onsubmit="return submitForm2();">
-      <label>Select Zip Archive File :</label><br />
-      <input type="file" name="data" accept=".zip" required />
-      <input type="submit" value="Upload Zip File" />
-    </form>
-    <form id='documentForm' onsubmit='return submitDocumentForm($("#documentForm"));'>
-      Document ID:<br />
-      <input type='text' name='documentId' class='masterDocumentId documentId' required />
-      <input type='submit' data-operation='editDocument' value='Edit Document'/>
-      <input type='submit' data-operation='downloadPdf' value='Download PDF'/>
-      <input type='submit' data-operation='downloadPackage' value='Download InDesign Package zip file'/>
-      <input type='submit' data-operation='storePdf' value='Store PDF at MediaFerry server'/>
-      <input type='submit' data-operation='storePackage' value='Store InDesign Package zip file at Mediaferry Server'/>
-    </form>
+    <h2>MediaFerry-to-one2edit test page.</h2>
+    <div class='oneForm'>
+      <h3>Upload an InDesign Package to be used as a new master document</h3>
+      First, create a folder holding everything with InDesign - File - Package.
+      Then compress that folder and its files into a zip archive.
+      Then upload that zip archive.<br /> <br />
+
+      <!--  This form here triggers off all the javascript with the 'onsubmit'. -->
+      <form method="post" id="fileUploadForm" name="fileinfo" onsubmit="return submitForm2();">
+        <label>Select Zip Archive File :</label><br />
+        <input type="file" name="data" accept=".zip" required />
+        <input type="submit" value="Upload Zip File" />
+      </form>
+    </div>
+    <div class='oneForm'>
+      <h3> Edit documents, download as PDF or as Zipped InDesign package.</h3>
+      The document number is the one from the one2edit server. <br /><br />
+      <form id='documentForm' onsubmit='return submitDocumentForm($("#documentForm"));'>
+        Document ID:<br />
+        <input type='text' name='documentId' class='masterDocumentId documentId' required />
+        <input type='submit' data-operation='editDocument' value='Edit Document'/>
+        <input type='submit' data-operation='downloadPdf' value='Download PDF'/>
+        <input type='submit' data-operation='downloadPackage' value='Download InDesign Package zip file'/>
+        <input type='submit' data-operation='storePdf' value='Store PDF at MediaFerry server'/>
+        <input type='submit' data-operation='storePackage' value='Store InDesign Package zip file at Mediaferry Server'/>
+      </form>
+    </div>
+    <div class='oneForm'>
+      <h2>Open the one2edit Administration Interface.</h2>
+      <form id='adminForm' onsubmit='return submitAdminForm($("#adminForm"));'>
+        <input type='submit' value='Open Administration Interface' />
+      </form>
+    </div>
     <div id='progressText'>
     </div>
   </div>
@@ -141,7 +165,7 @@ require('eDebug.php');
       $('#progressText').append('Cannot find asset project ID. <br />');
     },
     sequenceDone:function(a,event) {
-        $('#progressText').append('All finished OK.<br />');
+      $('#progressText').append('All finished OK.<br />');
     }
   };
 
@@ -218,6 +242,15 @@ require('eDebug.php');
     return false; // MUST return false or chaos ensues.
   }
 
+  function submitAdminForm($form) {
+    var a = {
+      callSequence: adminCallSequence,
+      genericEvents: genericEvents
+    }
+    L$.startSequence(a);
+    return false;
+  }
+
   var callSequenceEdit = [
     // open the Flash editor knwing the document project Id. a.documentId must be the document Proejct Id.
     {f:L$.editDocument, stage: 'Editing Document'},
@@ -260,20 +293,25 @@ require('eDebug.php');
 
 
     editCallSequence = [
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.editDocument, stage: 'Editing Document'} // ending this does logout anyway
+    ]
+
+    adminCallSequence = [
         {f:L$.startSession, stage: 'Logging In'},
-        {f:L$.editDocument, stage: 'Editing Document'} // ending this does logout anyway
+        {f:L$.openAdmin, stage:'opening Administration interface'} // ending this does logout anyway.
     ]
 
     pdfCallSequence = [
-          {f:L$.startSession, stage: 'Logging In'},
-          {f:L$.downloadPdf, stage: 'Downloading PDF'},
-          {f:L$.logoutFromServer, stage:'Logging out from server'}
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.downloadPdf, stage: 'Downloading PDF'},
+      {f:L$.logoutFromServer, stage:'Logging out from server'}
     ]
 
     packageCallSequence = [
-          {f:L$.startSession, stage: 'Logging In'},
-          {f:L$.downloadPackage, stage: 'Downloading PDF'},
-          {f:L$.logoutFromServer, stage:'Logging out from server'}
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.downloadPackage, stage: 'Downloading PDF'},
+      {f:L$.logoutFromServer, stage:'Logging out from server'}
     ]
 
     storeCallSequence = [
