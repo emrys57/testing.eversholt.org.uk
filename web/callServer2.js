@@ -607,7 +607,23 @@ var L$ = (function(my) {
       // actually nothing to do
       passOn(a);
     });
+  }
 
+  my.listTemplates = function(a) {
+    // list all the templates in teh UploadedTemplates folder, which must already have been found.
+    my.callServer(a, {
+      command: 'template.list',
+      folderId: a.one2editSession.folderId['template'],
+      includeDocumentInfos: true,
+      includeDocumentPreviews: true,
+      includeDocumentMetadata: true
+    }, function(a) {
+      // a.$xml is the data returned. Maybe we'll just have a look at it for the moment.
+      a.$xml.each(function(i,e){
+        console.log('template: ', e);
+      });
+      passOn(a);
+    });
   }
 
 

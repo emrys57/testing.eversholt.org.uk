@@ -47,6 +47,25 @@
     padding-top:0.5vw;
     margin: 1vw;
   }
+  .templateGrid {
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-gap: 10px;
+  }
+  .oneBox {
+    border-width: 1px;
+    border-radius: 0.3vw;
+    border-color: #666666;
+    border-style: solid;
+    background-color: white;
+    padding: 1vw;
+    margin: 1vw;
+    width: 25vw;
+  }
+  .boxText {
+    display: inline-block;
+    vertical-align: top;
+  }
   </style>
 
 </head>
@@ -100,6 +119,14 @@
         <input type="file" name="data" accept=".zip" required />
         <input type="submit" value="Upload Zip File" />
       </form>
+    </div>
+    <div class='oneForm'>
+      <h3>Show the available templated documents.</h3>
+      <form id='listForm' onsubmit='return submitListForm($("#listForm"));'>
+        <input type='submit' value='List Templates' />
+      </form>
+      <div id='listTemplatesHere'>
+      </div>
     </div>
     <div id='progressText'>
     </div>
@@ -267,6 +294,15 @@
     return false;
   }
 
+  function submitListForm($form) {
+    var a = {
+      callSequence: listTemplatesCallSequence,
+      genericEvents: genericEvents
+    }
+    L$.startSequence(a);
+    return false;
+  }
+
   var callSequenceEdit = [
     // open the Flash editor knowing the document project Id. a.documentId must be the document Proejct Id.
     {f:L$.editDocument, stage: 'Editing Document'},
@@ -281,6 +317,26 @@
 
   function setDocumentId(a) {
     $('.documentId').val(a.documentId);
+    L$.passOn(a);
+  }
+
+  function displayTemplates(a) {
+    var $templates = a.$xml.find('template'); // a jquery object containing all of the templates.
+    $('#listTemplatesHere').html('<div class="templateGrid"></div>');
+    $templates.each(function(i,e){
+      $template = $(e);
+      description = $template.children('description').text(); // and not document.description
+      name = $template.children('name').text();
+      previewBase64 = $template.children('document').children('preview').text();
+      var image = new Image();
+      image.src = 'data:image/jpg;base64,'+previewBase64;
+      $box=$('<div class="oneBox"><div class="boxText"><b>'+name+'</b>'+'<br />'+description+'</div></div>')
+      $image = $(image);
+      $image.css('margin', '0.5vw').css('margin-top', 0).css('z-index', '10');
+      $box.prepend($image);
+
+      $('.templateGrid').append($box);
+    });
     L$.passOn(a);
   }
 
@@ -343,6 +399,14 @@
       {f:L$.logoutFromServer, stage:'Logging out from server'}
     ];
     templatedCallSequence = callSequenceUploadMaster.concat(extraCallSequence);
+
+    listTemplatesCallSequence = [
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.findUploadedTemplatesFolderId, stage: 'Finding UploadedTemplates folder'},
+      {f:L$.listTemplates, stage: 'Listing templates'},
+      {f:displayTemplates, stage: 'Displaying Templates'},
+      {f:L$.logoutFromServer, stage:'Logging out from server'}
+    ];
 
     // if (wantTemplateslessJob) { callSequence0.push({f:L$.startTemplatelessTemplateJob, stage: 'Starting templateless template job'}); } // NOTE executing this later will change the value of a.callSequence
 
