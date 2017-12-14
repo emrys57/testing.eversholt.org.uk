@@ -95,28 +95,27 @@ var L$ = (function(my) {
     });
   };
 
-  my.findUploadedMastersFolderId = function(a) {
-    var uploadedMastersFolderName = 'UploadedMasters';
-    my.callServer(a, {
-      command:'document.folder.list',
-      id:1, // the root document folder
-      depth:1
-    }, function(a) {
-      var selector = 'name:contains('+uploadedMastersFolderName+')'
-      var $folders = a.$xml.find('folder').children(selector).parent();
-      $folders.each(function(i,e) {
-        // this makes sure we don't have multiple folders containg this text.
-        $folder = $(e);
-        if ($folder.children('name').text() == uploadedMastersFolderName) { a.one2editSession.uploadedMastersFolderId = $folder.children('id').text(); }
-      });
-      if (typeof a.one2editSession.uploadedMastersFolderId == 'undefined') {
-        console.log('startSession: folder not found: ', '/'+uploadedMastersFolderName);
-        maybeProgress(a, 'uploadedMastersFolder');
-        return;
-      }
-      passOn(a);
-    });
+  my.findUploadedMastersFolderId = function(a){
+    a.type = 'document';
+    a.folderName = 'UploadedMasters';
+    findFolderWithName(a);
   }
+  my.findUploadedTemplatesFolderId = function(a){
+    a.type = 'template';
+    a.folderName = 'UploadedTemplates';
+    findFolderWithName(a);
+  }
+  my.findUploadedWorkflowsFolderId = function(a){
+    a.type = 'workflow';
+    a.folderName = 'UploadedWorkflows';
+    findFolderWithName(a);
+  }
+  my.findTemplatedWorkflow = function(a) {
+    a.type = 'workflow';
+    a.fileName = 'templatedWorkflow';
+    findFileInFolder(a);
+  }
+
 
   my.findAssetProjectId = function(a) {
     my.callServer(a, {
@@ -278,7 +277,7 @@ var L$ = (function(my) {
       command: 'document.link',
       assetProjectId: a.one2editSession.projectId,
       assetIdentifier: assetIdentifier,
-      folderId: a.one2editSession.uploadedMastersFolderId // where to create the new document
+      folderId: a.one2editSession.folderId['document'] // where to create the new document
     }, function(a) {
       // console.log('doCreateProject: success: ', a.$xml[0]);
       a.$document = a.$xml.find('document');
@@ -344,26 +343,26 @@ var L$ = (function(my) {
     });
   }
 
- my.storeFileAtMediaFerryServer = function(a) {
-   a.one2editSession = {}; // have to have an empty session if I am to use callServer
-   if (typeof a.store != 'object') { a.store = {}; } // that would be a bug
-   var extension = '';
-   if (a.store.fileType == 'pdf') { extension = '.pdf'; }
-   if (a.store.fileType == 'package') { extension = '.zip'; }
-   var myData = {
-     fileType: a.store.fileType,
-     documentId: a.store.documentId,
-     filename: 'document'+a.store.documentId+extension
-   }
-   my.callServer(a, {}, function(a){
-     a.store.storedFilePathAtMediaFerry = a.$xml.find('filePath').text();
-     console.log('downloadFileToMediaFerryServer: downloadedFilePathAtMediaFerry: ', a.store.storedFilePathAtMediaFerry);
-     passOn(a);
-   }, {
-     data: myData,
-     url:'fetchFile.php'
-   });
- }
+  my.storeFileAtMediaFerryServer = function(a) {
+    a.one2editSession = {}; // have to have an empty session if I am to use callServer
+    if (typeof a.store != 'object') { a.store = {}; } // that would be a bug
+    var extension = '';
+    if (a.store.fileType == 'pdf') { extension = '.pdf'; }
+    if (a.store.fileType == 'package') { extension = '.zip'; }
+    var myData = {
+      fileType: a.store.fileType,
+      documentId: a.store.documentId,
+      filename: 'document'+a.store.documentId+extension
+    }
+    my.callServer(a, {}, function(a){
+      a.store.storedFilePathAtMediaFerry = a.$xml.find('filePath').text();
+      console.log('downloadFileToMediaFerryServer: downloadedFilePathAtMediaFerry: ', a.store.storedFilePathAtMediaFerry);
+      passOn(a);
+    }, {
+      data: myData,
+      url:'fetchFile.php'
+    });
+  }
 
   my.downloadPdf = function(a) {
     a.downloadCommand = 'document.export.pdf';
@@ -511,26 +510,57 @@ var L$ = (function(my) {
 
   function findFolderWithName(a) {
     // type is 'workflow', 'template' or 'document'
+    delete a.$folder;
     my.callServer(a, {
       command: a.type+'.folder.list',
       depth: 0 // recurse indefinitely
     }, function(a) {
-      a.$folder = a.$xml.find('name:contains("'+a.folderName+'")').parent();
+      var selector = 'name:contains('+a.folderName+')';
+      var $folders = a.$xml.find('folder').children(selector).parent();
+      $folders.each(function(i,e) {
+        // this makes sure we don't have multiple folders containg this text.
+        $folder = $(e);
+        if ($folder.children('name').text() == a.folderName) {
+          a.$folder = $folder;  // old code
+          if (typeof a.one2editSession.folderId == 'undefined') { a.one2editSession.folderId = []; }
+          a.one2editSession.folderId[a.type] = $folder.children('id').text();  // retain folder Id for each type, potentially
+        }
+      });
+      if (typeof a.$folder == 'undefined') {
+        console.log('findFolderWithName: folder not found: ', '/'+a.folderName);
+        maybeProgress(a, 'cannotFindFolder', a.folderName);
+        return;
+      }
       passOn(a); // which we hope has the folder in it.
     });
   }
 
   function findFileInFolder(a) {
     // a.type is 'workflow', 'template' or 'document'
-    a.folderId = a.$folder.children('id').text();
+    // folderId for the type has been previously set up
+    folderId = a.one2editSession.folderId[a.type];
+    delete a.$file;
     my.callServer(a,{
       command: a.type+'.list',
-      folderId: a.folderId
+      folderId: folderId
     }, function(a) {
-      // TODO: this fails where a second folder includes the text and then more.
-      a.$file = a.$xml.find('name:contains("'+a.fileName+'")').parent();
+      var $files = a.$xml.find('name:contains("'+a.fileName+'")').parent();
+      $files.each(function(i,e) {
+        // this makes sure we don't have multiple files containg this text.
+        $file = $(e);
+        if ($file.children('name').text() == a.fileName) {
+          a.$file = $file;  // old code
+          if (typeof a.one2editSession.fileId == 'undefined') { a.one2editSession.fileId = []; }
+          a.one2editSession.fileId[a.type] = $file.children('id').text();  // retain file Id for each type, potentially
+        }
+      });
+      if (typeof a.$file == 'undefined') {
+        console.log('findFileWithName: file not found: ', a.fileName);
+        maybeProgress(a, 'cannotFindFile', a.fileName);
+        return;
+      }
       passOn(a); // which we hope has the file in it.
-    })
+    });
   }
 
   function startTemplatelessTemplateJobReally(a, callSequence) {
@@ -561,6 +591,24 @@ var L$ = (function(my) {
     a.callSequence = callSequence1; // NOTE destroys existing callSequence
     my.startSequence(a);
   };
+
+  my.createTemplate = function(a) {
+    // create a template which links a.documentId to a.one2editSession.fileId['workflow']
+    // with the name, tags and description specified in the file upload form.
+    my.callServer(a, {
+      command: 'template.add',
+      folderId: a.one2editSession.folderId['template'],
+      name: a.template.name,
+      tags: a.template.tags,
+      description: a.template.description,
+      documentId: a.documentId, // the master document
+      workflowData: '<?xml version="1.0" encoding="utf-8"?><workflowData><workflow id="'+a.one2editSession.fileId['workflow']+'"></workflow></workflowData>'
+    }, function(a) {
+      // actually nothing to do
+      passOn(a);
+    });
+
+  }
 
 
   return my;

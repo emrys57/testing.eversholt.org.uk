@@ -61,7 +61,7 @@
       Then upload that zip archive.<br /> <br />
 
       <!--  This form here triggers off all the javascript with the 'onsubmit'. -->
-      <form method="post" id="fileUploadForm" name="fileinfo" onsubmit="return submitForm2();">
+      <form id="fileUploadForm" name="fileinfo" onsubmit="return submitForm2();">
         <label>Select Zip Archive File :</label><br />
         <input type="file" name="data" accept=".zip" required />
         <input type="submit" value="Upload Zip File" />
@@ -81,9 +81,24 @@
       </form>
     </div>
     <div class='oneForm'>
-      <h2>Open the one2edit Administration Interface.</h2>
+      <h3>Open the one2edit Administration Interface.</h3>
       <form id='adminForm' onsubmit='return submitAdminForm($("#adminForm"));'>
         <input type='submit' value='Open Administration Interface' />
+      </form>
+    </div>
+    <div class='oneForm'>
+      <h3>Upload a new zip package for a master document and create a templated workflow.</h3>
+      Choose a zipped InDesign package archive to create the new master document. Define a description and optional tags for the template.<br /><br />
+      <form id='templatedForm' onsubmit='return submitTemplatedForm($("#templatedForm"));'>
+        Template Name:<br />
+        <input type='text' id='templateName' style='width: 40%;' required />
+        <br />Template Tags, separated by space:<br />
+        <input type='text' id='tagField' style='width: 80%;'/>
+        <br />Template Description:<br />
+        <textarea id='descriptionText' style='width:80%; rows: 4;' ></textarea>
+        <br /><label>Select Zip Archive File :</label><br />
+        <input type="file" name="data" accept=".zip" required />
+        <input type="submit" value="Upload Zip File" />
       </form>
     </div>
     <div id='progressText'>
@@ -166,6 +181,12 @@
     },
     sequenceDone:function(a,event) {
       $('#progressText').append('All finished OK.<br />');
+    },
+    cannotFindFolder: function(a, event, folderName) {
+      $('#progressText').append('Cannot find folder: '+folderName+'<br />');
+    },
+    cannotFindFile: function(a, event, fileName) {
+      $('#progressText').append('Cannot find file: '+fileName+'<br />');
     }
   };
 
@@ -222,26 +243,6 @@
     return false; // MUST return false or chaos ensues.
   }
 
-  function submitDownloadPdfForm($form) {
-    var a = {
-      callSequence: pdfCallSequence,
-      documentId: $form.find('.documentId').val(),
-      genericEvents: genericEvents
-    }
-    L$.startSequence(a);
-    return false; // MUST return false or chaos ensues.
-  }
-
-  function submitDownloadPackageForm($form) {
-    var a = {
-      callSequence: packageCallSequence,
-      documentId: $form.find('.documentId').val(),
-      genericEvents: genericEvents
-    }
-    L$.startSequence(a);
-    return false; // MUST return false or chaos ensues.
-  }
-
   function submitAdminForm($form) {
     var a = {
       callSequence: adminCallSequence,
@@ -251,8 +252,23 @@
     return false;
   }
 
+  function submitTemplatedForm($form) {
+    var a = {
+      $form: $form,
+      callSequence: templatedCallSequence,
+      genericEvents: genericEvents
+    }
+    a.template = {
+      tags: $form.find('#tagField').val(), // tags are plain text separated by spaces. Punctuation counts as space.
+      name: $form.find('#templateName').val(),
+      description: $form.find('#descriptionText').val()
+    }
+    L$.startSequence(a);
+    return false;
+  }
+
   var callSequenceEdit = [
-    // open the Flash editor knwing the document project Id. a.documentId must be the document Proejct Id.
+    // open the Flash editor knowing the document project Id. a.documentId must be the document Proejct Id.
     {f:L$.editDocument, stage: 'Editing Document'},
     {f:regainControl, stage: 'Returning to calling code'}
   ];
@@ -276,8 +292,7 @@
 
     $(window).on('unload', function(){ console.log('unload running'); L$.logoutFromServer({}); }) // Must logout on leaving this page or we'll run out of one2edit licences.
 
-    // This sequence is handled in order by the library API calls in callServer.js
-    callSequence0 = [
+    callSequenceUploadMaster = [
       {f:L$.startSession, stage: 'Logging In'},
       {f:L$.findAssetProjectId, stage: 'Finding Asset Project ID'},
       {f:L$.submitForm, stage:'Uploading zip file'},
@@ -287,36 +302,47 @@
       {f:L$.doCreateProject, stage:'Creating editable document from InDesign file'},
       {f:L$.doAddContentGroup, stage:'Creating the Editable Content Group'},
       {f:L$.doPopulateContentGroup, stage:'Moving content into the Editable Content Group'},
-      {f:setDocumentId, stage:'Setting Document ID'},
-      {f:L$.logoutFromServer, stage:'Logging out from server'}
+      {f:setDocumentId, stage:'Setting Document ID'}
     ];
-
+    // This sequence is handled in order by the library API calls in callServer.js
+    // Create a shallow copy of the basic upload-and-create-document flow, then log out.
+    callSequence0 = callSequenceUploadMaster.concat([{f:L$.logoutFromServer, stage:'Logging out from server'}]); // creates new array, does not modify arguments
 
     editCallSequence = [
       {f:L$.startSession, stage: 'Logging In'},
       {f:L$.editDocument, stage: 'Editing Document'} // ending this does logout anyway
-    ]
+    ];
 
     adminCallSequence = [
-        {f:L$.startSession, stage: 'Logging In'},
-        {f:L$.openAdmin, stage:'opening Administration interface'} // ending this does logout anyway.
-    ]
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.openAdmin, stage:'opening Administration interface'} // ending this does logout anyway.
+    ];
 
     pdfCallSequence = [
       {f:L$.startSession, stage: 'Logging In'},
       {f:L$.downloadPdf, stage: 'Downloading PDF'},
       {f:L$.logoutFromServer, stage:'Logging out from server'}
-    ]
+    ];
 
     packageCallSequence = [
       {f:L$.startSession, stage: 'Logging In'},
       {f:L$.downloadPackage, stage: 'Downloading PDF'},
       {f:L$.logoutFromServer, stage:'Logging out from server'}
-    ]
+    ];
 
     storeCallSequence = [
       {f:L$.storeFileAtMediaFerryServer, stage: 'Storing File at MediaFerry Server'}
-    ]
+    ];
+
+    // Create a shallow copy of the basic upload-and-create-master flow, then do the template
+    var extraCallSequence = [
+      {f:L$.findUploadedTemplatesFolderId, stage: 'Finding UploadedTemplates folder'},
+      {f:L$.findUploadedWorkflowsFolderId, stage: 'Finding UploadedWorkflows folder'},
+      {f:L$.findTemplatedWorkflow, stage: 'Finding TemplatedWorkflow'},
+      {f:L$.createTemplate, stage: 'Creating Template'},
+      {f:L$.logoutFromServer, stage:'Logging out from server'}
+    ];
+    templatedCallSequence = callSequenceUploadMaster.concat(extraCallSequence);
 
     // if (wantTemplateslessJob) { callSequence0.push({f:L$.startTemplatelessTemplateJob, stage: 'Starting templateless template job'}); } // NOTE executing this later will change the value of a.callSequence
 
