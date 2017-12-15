@@ -1,5 +1,6 @@
 <?php
-// upload a new InDesign Package to be used as a new master document by one2edit
+// DEMO FILE. Not production quality!
+// This page demonstrates teh features of the callServer2.js library.
 ?>
 
 <html>
@@ -413,7 +414,7 @@
 
     packageCallSequence = [
       {f:L$.startSession, stage: 'Logging In'},
-      {f:L$.downloadPackage, stage: 'Downloading PDF'},
+      {f:L$.downloadPackage, stage: 'Downloading Package'},
       {f:L$.logoutFromServer, stage:'Logging out from server'}
     ];
 

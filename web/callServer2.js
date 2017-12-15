@@ -1,37 +1,61 @@
-// Library of functions for calling the server API
+// Library of functions for calling the one2edit server API
 // This code here presumes that jQuery is already loaded.
 
 
 // javascript module pattern design taken from "Loose Augmentation" section of http://www.adequatelygood.com/JavaScript-Module-Pattern-In-Depth.html
 
 var L$ = (function(my) {
-  // There is a bug in the chrome clear-cache-and-reload button. It sometimes gives very bizarre results when testing this code.
-  // Hitting shift-reload in firefox seems entirely reliable, though.
 
-  // All the functions below which are defined like function(a) are designed to be chained together.
-  // They mostly contain async returns from the API. In the async return code, the next function in a.callSequence
-  // is called, passing along a modified version of the object `a`.
+  // The functions defined below like "my.something = function(a){}" are the public part of this library, to be invoked by external code as "L$.something(a)"..
+  // Functions defined like "function anyOldName(a) {}" are private and cannot be invoked from elsewhere.
+
+  // All the functions below which are defined like "function(a){}" are designed to be chained together.
+  // They mostly contain AJAX calls to the one2edit with async returns from the API.
+  // "a" is an object to be passed along through all these routines, with extra data added in as needed.
+  // In the AJAX async return code, the next function in "a.callSequence"
+  // is called, passing along a modified version of the object "a".
   // a.callSequence = [{f, beforeStart, onDone, onSuccess, onError, beforeApiCall, onApiResponse}];
   // `f` is the function to be called in sequence.
-  // beforeStart is a function to be called just before thisFunction is called.
-  // onDone is a function to be called just before the next function is called in the sequence, after the async API call return.
+  // "beforeStart" through "onApiResponse" are optional callback functions to be called by this code here before, during and after the execution of "f".
+  // "beforeStart" is a function to be called just before "f" is called.
+  // "onDone" is a function to be called just before the next function is called in the sequence, after the async API call return.
   // On returning from onDone, the next function in the callSequence will be called.
-  // onSuccess is called when the API returns and does not give an error code.
-  // onError is a function to be called if something goes wrong, in which case the next function in the callSequence will _not_ be called. The sequence terminates.
-  // beforeApiCall is a fucntion called just before the call is made to the server.
-  // onApiResponse is a function to be called in the success routine of the API call to the server.
-  // `thisFunction` must be defined. All other entries are optional, and need not be defined.
-  // The optional entries may be used for progress indication and error reporting. They are called like function() (a, eventName).
-  // In addition, if `f` exists, and an event routine is not defined, the code will look in a.genericEvents for the appropriate routine, and call that if it exists.
-  // a.sequenceIndex points to the current entry in callSequence being executed.
-  // a.callSequence is not modified by the operation.
-  // If the calling code wishes to regain control at the end of the call sequence, it should place its own extra thisFunction at the end of a.callSequence.
+  // "onSuccess" is called when the API returns and does not give an error code.
+  // "onError" is a function to be called if something goes wrong, in which case the next function in the callSequence will _not_ be called. The sequence terminates.
+  // "beforeApiCall" is a function called just before the call is made to the server.
+  // "onApiResponse" is a function to be called in the AJAX success routine of the API call to the server.
+  // `f` must be defined. All other entries are optional, and need not be defined.
+  // The optional entries may be used for progress indication and error reporting. They are called like "beforeStart(a, eventName)".
+  // In addition, if `f` exists, and an event routine is not defined, the code will look in "a.genericEvents" for the appropriate routine, and call that if it exists.
+  // In fact, in testing, I only ever used the genericEvents.
+  // It's possible to add extra properties to each object in "a.callSequence". For example, I added a "stage" property, a text string, that the genericEvents used to indicate progress.
 
+  // "a.sequenceIndex" is the index of the current entry in callSequence being executed.
+  // "a.callSequence" is not modified by the operation.
+  // If the calling code wishes to regain control at the end of the call sequence, it should place its own extra "f" at the end of "a.callSequence".
+
+  // The calling code puts together an initial "a" object, perhaps like this:
+  // var listTemplatesCallSequence = [
+  //   {f:L$.startSession, stage: 'Logging In'},
+  //   {f:L$.findUploadedTemplatesFolderId, stage: 'Finding UploadedTemplates folder'},
+  //   {f:L$.listTemplates, stage: 'Listing templates'},
+  //   {f:displayTemplates, stage: 'Displaying Templates'},
+  //   {f:L$.logoutFromServer, stage:'Logging out from server'}
+  // ];
+  // var a = {
+  //   callSequence: listTemplatesCallSequence,
+  //   genericEvents: genericEvents
+  // }
+  // L$.startSequence(a);
+
+  // Every external call into this library to start a sequence of operations starts here, as shown in the example above.
   my.startSequence = function(a) {
     a.sequenceIndex = -1;
     passOn(a);
   }
 
+  // "passOn" is called to finish one of the operations in "callSequence" and start the next.
+  // It also optionally makes callbacks to show how the sequence is progressing.
   function passOn(a) {
     maybeProgress(a, 'onDone');
     a.sequenceIndex += 1;
@@ -39,15 +63,19 @@ var L$ = (function(my) {
     // pass on the object `a` to the next function in the sequence, if such a function exists
     if ($.isArray(a.callSequence) && (typeof a.sequenceIndex != 'undefined') && (typeof a.callSequence[a.sequenceIndex] != 'undefined') && (typeof a.callSequence[a.sequenceIndex].f == 'function')) {
       maybeProgress(a, 'beforeStart');
-      (a.callSequence[a.sequenceIndex].f)(a);
+      (a.callSequence[a.sequenceIndex].f)(a); // this is the line that executes the next function in the sequence.
     } else {
       console.log('No more to do in sequence, finished.');
       maybeProgress(a, 'sequenceDone');
     }
   }
 
+  // I had originally intended that "passOn" be private to this library.
+  // However, if the calling code wishes to insert its own functions into the callSequence (which is a very reasonable thing to do)
+  // then it needs to be able to call passOn. So I made a public version too.
   my.passOn = function(a) { passOn(a); } // eventually had to make it public
 
+  // "maybeProgress" works out whether the progress callbacks should be to a stage-specific fucntion, or a generic function, or not at all.
   function maybeProgress(a, event, optionalExtras) {
     // if a handler is defined for the current event in the call sequence, execute it.
     // If it's not defined, look for a generic handler.
@@ -64,9 +92,27 @@ var L$ = (function(my) {
     }
   }
 
+  // Start a session with the one2edit server by logging in with username and password.
+  // To make the system marginally more secure, no one2edit passwords are sent from MediaFerry to the user's browser here.
+  // Instead, the web service at the address defiend by the javascript variable "new21sessionUrl" is asked to do the logging in and provide a sessionId to be reused here.
+  // "new21sessionURL" has to be defined outside of this library code. I have provided the file "new21session.php" for this service.
+
+  // one2edit sessions traditionally time out in a few minutes. To avoid timeouts, don't start the session until you're ready to go,
+  // with no human action needed to complete the whole callSequence.
+  // Also, one2edit comes with a finite number of user licences. To avoid running out of licences (at least, until all the sessions time out)
+  // make sure to log out of the session when it finishes.
+
+  // This can ask to log in as any one2edit user, by setting a.username at entry.
+  // If no username is provided, a generic API Test username will be provided instead.
+
+  // SECURITY ISSUE: new21session.php has to check that the user here is a valid logged-in MediaFerry user
+  // with permission to use the one2edit server
+  // before logging in and providing the sessionId.
+  // THAT AUTHORISATION CODE HAS NOT YET BEEN WRITTEN. Someone needs to go and do that.
+
+  // TODO: make this code use the generic callServer routine, overriding URL and data.
   my.startSession = function(a) {
     // Start a session with the one2edit server, by calling the MediaFerry server and asking it to tell you the sessionId.
-    // Also look up uploaded masters folder ID and asset project ID because I keep failing to check them.
     var myData = {};
     if (typeof a.username == 'string') { myData.username = a.username; }
     $.ajax( {
@@ -90,11 +136,13 @@ var L$ = (function(my) {
           maybeProgress(a, 'loginFailed');
           return;
         }
-        passOn(a);
+        passOn(a); // success code has to call passOn to move the callSequence on.
       }
     });
   };
 
+  // These routines locate particular files and folders in the one2edit server.
+  // The results of these lookups are placed into "a" for later routines to use. "a" accumulates extra info like this thoughout the callSequence.
   my.findUploadedMastersFolderId = function(a){
     a.type = 'document';
     a.folderName = 'UploadedMasters';
@@ -116,7 +164,6 @@ var L$ = (function(my) {
     findFileInFolder(a);
   }
 
-
   my.findAssetProjectId = function(a) {
     my.callServer(a, {
       command: 'asset.list'
@@ -124,21 +171,23 @@ var L$ = (function(my) {
       a.one2editSession.projectId = a.$xml.find('asset').first().children('project').text(); // the asset project
       if (typeof a.one2editSession.projectId == 'undefined') {
         console.log('startSession: asset projectId not found.');
-        maybeProgress(a, 'assetProject');
+        maybeProgress(a, 'assetProject'); // Note the full custom callback routine.
+        // The calling code can provide generic handlers for the cusstom callbacks. Various errors here are reported through this means.
         return;
       }
       passOn(a);
     });
   }
 
+
+// TODO: use maybeProgress to pass ajax errors to a generic event handler.
   my.callServer = function(a, data, realSuccess, moreAjaxStuff) {
     // call the one2edit server.
     // the 'realSuccess' function is only called if the server does not return an error code.
     // 'data' is an array of the parameters to pass to the server.
-    // callServer automatically adds the sessionId and workspaceId to data.
+    // callServer automatically adds the sessionId and workspaceId to 'data'.
     // `a` contains the session info and is used for logging and progress calls.
-    // `moreAjaxStuff`, if present, is extra info to be added to the Ajax call.
-
+    // `moreAjaxStuff`, if present, is extra info to be added to the Ajax call. It can override the URL and data if it needs.
 
     var myData = {
       sessionId: a.one2editSession.sessionId,
@@ -152,12 +201,12 @@ var L$ = (function(my) {
       data: myData,
       error: function(jqXHR, textStatus, errorThrown) {
         console.log('callServer: ajax error: textStatus: ', textStatus, 'errorThrown: ', errorThrown, ' jqXHR: ', jqXHR);
-        if (typeof a.onAjaxError == 'function') { // optionally signal ajax error to calling function.
+        if (typeof a.onAjaxError == 'function') { // optionally signal ajax error to calling function. Provide this function if you need it.
           (a.onAjaxError(a, jqXHR, textStatus, errorThrown));
         }
       },
       success: function(returnedData, textStatus, jqXHR) {
-        a.$xml = $(returnedData); // the is the only way I can make sense of the weird returned object
+        a.$xml = $(returnedData); // the is the only way I can make sense of the weird returned object https://stackoverflow.com/questions/19220873/how-to-read-xml-file-contents-in-jquery-and-display-in-html-elements
         // console.log('callServer: success: returnedData:', returnedData);
         maybeProgress(a, 'onApiResponse');
         var code = a.$xml.find('error').children('code').text();
@@ -169,9 +218,9 @@ var L$ = (function(my) {
         }
         maybeProgress(a, 'onSuccess');
         if (typeof realSuccess != 'undefined') {
-          realSuccess(a);
+          realSuccess(a); // when realSuccess is called, the API hasn't reported an error, AJAX hasn't reported an error, and the XML returned data is in a.$xml
         } else {
-          passOn(a); // default if no success function
+          passOn(a); // default if no success function is specified.
         }
       }
     }
@@ -185,9 +234,14 @@ var L$ = (function(my) {
 
   // https://stackoverflow.com/questions/2320069/jquery-ajax-file-upload
   // This uploads a file. Change this to give a progress bar on upload and drag-and-drop functionality.
+  // The zip file ends up in the "asset space", where uplaoded files live at one2edit.
+  // While other one2edit files are defined by folderId and fileId numbers,
+  // the asset space uses a full text pathName. I don't know why.
+  // Tihs routine outputs that pathName to "a.zipFileIdentifier".
   my.submitForm = function(a) {
+    // at entry,
     // a.$form is the jQuery object that is the upload form.
-    // callSequence is an array of functions to call as each async API call completes.
+    // https://stackoverflow.com/questions/6974684/how-to-send-formdata-objects-with-ajax-requests-in-jquery?noredirect=1&lq=1
     // console.log('submit event');
     var fd = new FormData(a.$form[0]);
     fd.append('sessionId', a.one2editSession.sessionId);
@@ -207,11 +261,11 @@ var L$ = (function(my) {
     });
   }
 
-  // That is fine, but now we are doing javascript access direct from user's browser to one2edit.
-  // Using PHP to set up the session makes sense, because then the one2edit password never touches the browser.
-  // It's just rather scruffy to have both javascript and php handle the one2edit API.
-  // I wish I had a library to handle these APIs direct from the API definitions.
-
+  // ask one2edit to unzip the file just uploaded.
+  // the zip file is at "a.zipFileIdentifier" at entry.
+  // We also need to have done L$.findAssetProjectId before coming ehre, to set a.one2editSession.projectId
+  // This routines output the full asset space pathname of the unzipped folder to "a.extractedFolderIdentifier".
+  // DO remove the zipfiles as they are uploaded. Two zip files are not allowed to have the same name, and removing them after unzip mostly stops this.
   my.doUnzipAtServer = function(a) {
     my.callServer(a, {
       command: 'asset.extract',
@@ -225,18 +279,19 @@ var L$ = (function(my) {
     });
   }
 
+  // Hunt down the .indd file within the folders created by unzipping an InDesign package.
+  // Recursively search through any folders for the first .indd file.
+  // At entry, "a.extractedFolderIdentifier" should point to the extracted package to be searched.
   my.doSearchForInddFile = function(a) {
-    // a.$xml is the result of the 'asset.extract' call
     var foundInddFile = false; // global, first descendant to find file sets it for all
-    // Hunt down the .indd file within the folders created by unzipping.
-    // Have a separate function for the search because that function uses folder identifiers recursively, not the xml result.
+    // Have a separate function for the search to cope with the recursion.
     searchForInddFile(a, a.extractedFolderIdentifier);
 
     function searchForInddFile(a, folderIdentifier) {
       // 'folderIdentifier' is a complete file path in the asset space
       // find the files and folders in that folder.
       // this function can call itself recursively to go deeper into the asset folder tree.
-      callServerData = {
+      var callServerData = {
         command: 'asset.list',
         folderIdentifier: folderIdentifier,
         projectId: a.one2editSession.projectId
@@ -267,7 +322,12 @@ var L$ = (function(my) {
   }
 
 
-
+  // one2edit "project documents" (or maybe just "projects") are different from the uplaoded InDesign packages.
+  // This routine creates a project from an InDesign package.
+  // It typically takes about 10s to run.
+  // At entry, a.$asset has to be the xml defining the .indd file in the one2edit asset space.
+  // Also I already have to have found the projectId and the UploadedMasters folder in the project space.
+  // At exit, a.$document contains the xml defining the created project document.
   my.doCreateProject = function(a) {
     // transform the InDesign file in the asset space into an editable project in the one2edit document space.
     // a.$asset is the result of 'asset.list' and contains just the asset we want to convert.
@@ -285,6 +345,11 @@ var L$ = (function(my) {
     });
   }
 
+  // one2edit project documents have "Content Groups" that can be used to define bits of the document to be edited.
+  // We use "Editable Content Group" to define this, and this routine adds that content group to the project document, and leaves the content group empty.
+  // At entry, a.$document contains the xml defining the one2edit project document.
+  // At exit, a.toGroupId is the ID of the newly created content group.
+  // TODO: modify callServer to allow the 4004 error to be ignored.
   my.doAddContentGroup = function(a) {
     // Add the 'Editable Content Group' which is the expected one for our workflows
     // if the group already exists (somehow) we get a code-4004 error, which we can ignore.
@@ -302,9 +367,10 @@ var L$ = (function(my) {
     });
   }
 
+  // Move any content from an editable layer to the Editable Content Group just created.
+  // 'a.toGroupId' contains the response to a 'document.group.add' API call. a.$document is the document.
+  // All of any layer whose name starts "Editable" is moved to the Editable Content Group.
   my.doPopulateContentGroup = function(a) {
-    // Move any content from an editable layer to the Editable Content Group just created.
-    // 'a.toGroupId' contains the response to a 'document.group.add' API call. a.$document is the document.
     // I cannot filter the layers by name with a regular expression. I need to list the layers and sort out which ones I want here.
     // console.log('doPopulateContentGroup: toGroupId: ', a.toGroupId, '; documentId: ', a.documentId);
     my.callServer(a, {
@@ -343,6 +409,15 @@ var L$ = (function(my) {
     });
   }
 
+  // This library code here usually executes at the user's browser.
+  // Sometimes we need to move files not from one2edit to the broser, but from one2edit to the MediaFerry server.
+  // This routine calls another PHP helper to do this, 'fetchfile.php', which needs to run at the MediaFerry server.
+  // SECURITY NOTE: fetchfile.php needs to check that the user is permitted to see the data and use the one2edit server.
+  // THAT CODE HAS NOT YET BEEN WRITTEN. Someone should write it.
+  // You don't need to have logged in to one2edit to run this routine.
+  // At entry, a.store = {fileType, documentId} defines the document to be downloaded.
+  // At exit, a.store.storedFilePathAtMediaFerry holds the path to the stored file at MediaFerry.
+  // This code works for 'pdf' and 'package' types.
   my.storeFileAtMediaFerryServer = function(a) {
     a.one2editSession = {}; // have to have an empty session if I am to use callServer
     if (typeof a.store != 'object') { a.store = {}; } // that would be a bug
@@ -364,6 +439,7 @@ var L$ = (function(my) {
     });
   }
 
+  // these routines download files to the user's browser.
   my.downloadPdf = function(a) {
     a.downloadCommand = 'document.export.pdf';
     downloadFile(a);
@@ -380,9 +456,9 @@ var L$ = (function(my) {
     // Setting a timemout doesn't work because the session is checked both at the start of the operation and the end.
     // I could send the username and password but I have been desperately trying to avoid that.
     // Create a new session and use that? And hope it doesn't use edit licences?
-
-    // This seems to work, but downloads the files to the user's workstation instead of to the mediaferry server.
-    // I need separate functions to store teh result at the MediaFerry server
+    // I don't want to retain session indefinitely in this code because they have a habit of timing out at the most embarrassing moments.
+    // I don't mind leaving the extra sessions used for downlaod to time out. They don't seem to use one2edit licences
+    // and the timeout is long enough for the downlaod to complete.
 
     function startDownload(a3) {
       // start the download once we have a new session
@@ -404,6 +480,12 @@ var L$ = (function(my) {
       passOn(a3);
     }
 
+    // If you need to start a second callSequence while the first is still running,
+    // magic up a new copy of "a" and call "startSequence" on it.
+    // This routine here goes back to the first sequence.
+    // It seems to be picking up a global copy of "a". Ah, this is all within 'downloadFile', and "a" is global within that.
+    // TODO:  Actually, push and pop it, like "a2.aPushed = a"
+    // and passOn(a2.aPushed).
     function goBackToFirstSequence(a4) {
       // pick up the first sequence from the enclosing function scope, and restart that. Unbelievably, it works perfectly.
       // this is how you do subroutines using this callSequence idea.
@@ -426,6 +508,9 @@ var L$ = (function(my) {
     console.log('downloadPdf: started second sequence: a2:', a2); // never reaches here!
   }
 
+  //open the one2edit flash editor.
+  // shared between the document editor, the job editor and the admin desktop.
+  // log out on exit to avoid leaving a licence behind to time out.
   function openFlash(a, ap) { // open the Flash editor
     console.log('openFlash: ap: ', ap);
     maybeProgress(a, 'adjustDisplayForFlash');
@@ -433,7 +518,7 @@ var L$ = (function(my) {
       options: {
         onLogout: function() {
           maybeProgress(a, 'adjustDisplayAfterFlash');
-          console.log('calling one2edit.destroy');
+          console.log('calling one2edit.destroy'); // you have to destroy the one2edit instance, it cannot be reused.
           one2edit.destroy();
           console.log('called one2edit.destroy');
           passOn(a);
@@ -482,7 +567,7 @@ var L$ = (function(my) {
     openFlash(a,{}); // that's all. No editor => admin interface
   }
 
-
+  // log out (if we're logged in) and delete the memory of the session in "a" to avoid the bug of reusing an expired session.
   my.logoutFromServer = function(a) {
     if ((typeof a != 'undefined') && (typeof a.one2editSession != 'undefined') && (typeof a.one2editSession.sessionId != 'undefined') && (a.one2editSession.sessionId != '')) {
       my.callServer(a, {
@@ -495,7 +580,7 @@ var L$ = (function(my) {
     }
   }
 
-
+  // Find various files and folders within the one2edit server
   function findTemplatelessWorkflow1(a) {
     a.folderName = 'UploadedWorkflows';
     a.type = 'workflow';
@@ -508,6 +593,7 @@ var L$ = (function(my) {
     findFileInFolder(a);
   }
 
+  // TODO: implement https://stackoverflow.com/questions/2338439/select-element-based-on-exact-text-contents
   function findFolderWithName(a) {
     // type is 'workflow', 'template' or 'document'
     delete a.$folder;
@@ -563,6 +649,8 @@ var L$ = (function(my) {
     });
   }
 
+  // This routine starts a template job involving a master document and a workflow without ever needing a template.
+  // The disadvantage is that it cannot have any tags.
   function startTemplatelessTemplateJobReally(a, callSequence) {
     console.log('startTemplatelessTemplateJobReally: a: ', a, '; xmlPassedIn:', a.$xml[0]);
     a.workflowId = a.$file.children('id').text();
@@ -592,6 +680,10 @@ var L$ = (function(my) {
     my.startSequence(a);
   };
 
+  // data for a new template linking a master document and a workflow comes from a form in teh demo html page.
+  // At entry, a.template = {name, tags, description}
+  // and a.documentId is the master document
+  // and the workflow Id has already had to have been found.
   my.createTemplate = function(a) {
     // create a template which links a.documentId to a.one2editSession.fileId['workflow']
     // with the name, tags and description specified in the file upload form.
@@ -612,8 +704,10 @@ var L$ = (function(my) {
     });
   }
 
+  // list all the templates in teh UploadedTempaltes folder, complete wtih jpeg thumbnails.
+  // you have to have located UploadedTemplates before coming here.
   my.listTemplates = function(a) {
-    // list all the templates in teh UploadedTemplates folder, which must already have been found.
+    // list all the templates in the UploadedTemplates folder, which must already have been found.
     my.callServer(a, {
       command: 'template.list',
       folderId: a.one2editSession.folderId['template'],
@@ -630,6 +724,10 @@ var L$ = (function(my) {
   }
 
 
+  // This starts a template job, meaning, executes the workflow for the template.
+  // It creates a version copy of the master document and creates the job.
+  // At entry, a.tempalteId is the template to be started. That defines everything else.
+  // At exit, a.jobId is the job jsut started, and a.versionCopyDocumentId is the verison copy just created.
   my.startTemplate = function(a) {
     // Terrible trouble trying to select the right job in jQuery
     // which is why there is such a clunky filter mechanism below, and so many commented out logging statements.
@@ -657,7 +755,7 @@ var L$ = (function(my) {
     });
   }
 
-
+  // On ending job editing, Tariq wants all the fields set to read-to-review, and this rotuine does just that.
   my.setAllItemsToNeedsReview = function(a) {
     console.log('setAllItemsToNeedsReview: versionCopyDocumentId: ', a.versionCopyDocumentId);
     my.callServer(a, {
