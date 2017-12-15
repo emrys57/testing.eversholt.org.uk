@@ -595,6 +595,8 @@ var L$ = (function(my) {
   my.createTemplate = function(a) {
     // create a template which links a.documentId to a.one2editSession.fileId['workflow']
     // with the name, tags and description specified in the file upload form.
+    var workflowData = '<workflowData><workflow id="'+a.one2editSession.fileId['workflow']+'" default="true"></workflow></workflowData>';
+    console.log('createTemplate: workflowData:', workflowData);
     my.callServer(a, {
       command: 'template.add',
       folderId: a.one2editSession.folderId['template'],
@@ -602,7 +604,8 @@ var L$ = (function(my) {
       tags: a.template.tags,
       description: a.template.description,
       documentId: a.documentId, // the master document
-      workflowData: '<?xml version="1.0" encoding="utf-8"?><workflowData><workflow id="'+a.one2editSession.fileId['workflow']+'"></workflow></workflowData>'
+      workflowData: workflowData
+      // workflowData: '<?xml version="1.0" encoding="utf-8"?><workflowData><workflow id="'+a.one2editSession.fileId['workflow']+'"></workflow></workflowData>'
     }, function(a) {
       // actually nothing to do
       passOn(a);
@@ -626,6 +629,43 @@ var L$ = (function(my) {
     });
   }
 
+
+  my.startTemplate = function(a) {
+    // Terrible trouble trying to select the right job in jQuery
+    // which is why there is such a clunky filter mechanism below, and so many commented out logging statements.
+    // but it finally seems to work.
+    console.log('startTemplate: trying to start template:', a.templateId);
+    my.callServer(a,{
+      command: 'template.start',
+      id: a.templateId,
+      mode: 'VERSION'
+    },function(a){
+      // console.log('startTemplate: realSuccess: xml: ', a.$xml[0]);
+      $document = a.$xml.find('document'); // that is the version copy, not the master document
+      a.versionCopyDocumentId = $document.children('id').text();
+      $jobs = a.$xml.find('job');
+      $jobs.each(function(i,e) { console.log('startTemplate: job:', i,':',e ); });
+      $jobStarted = $jobs.filter(function(){
+        var statusText = $(this).find('status').text();
+        var truth = (statusText == 'STARTED');
+        // console.log('filter: status:', statusText, truth);
+        return truth;
+      })
+      a.jobId = $jobStarted.children('id').text();
+      // console.log('startTemplate: jobId: ', a.jobId, '; jobStarted: ', $jobStarted[0]);
+      passOn(a);
+    });
+  }
+
+
+  my.setAllItemsToNeedsReview = function(a) {
+    console.log('setAllItemsToNeedsReview: versionCopyDocumentId: ', a.versionCopyDocumentId);
+    my.callServer(a, {
+      command: 'document.workflow.commit',
+      documentId: a.versionCopyDocumentId,
+      toStatus: 'NEEDSREVIEW'
+    }); // no realSuccess fucntion, automatic passOn used.
+  }
 
   return my;
 }(L$ || { nameSpace: 'L$' }));

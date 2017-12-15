@@ -66,6 +66,12 @@
     display: inline-block;
     vertical-align: top;
   }
+
+  .bottomRight {
+    display:inline-block;
+    float: right;
+    vertical-align: bottom;
+  }
   </style>
 
 </head>
@@ -89,14 +95,15 @@
     <div class='oneForm'>
       <h3> Edit documents, download as PDF or as Zipped InDesign package.</h3>
       The document number is the one from the one2edit server. <br /><br />
-      <form id='documentForm' onsubmit='return submitDocumentForm($("#documentForm"));'>
+      <!-- see below at submitDocumentForm2 for an explanation of how this works. -->
+      <form id='documentForm' onsubmit='return false;'>
         Document ID:<br />
         <input type='text' name='documentId' class='masterDocumentId documentId' required />
-        <input type='submit' data-operation='editDocument' value='Edit Document'/>
-        <input type='submit' data-operation='downloadPdf' value='Download PDF'/>
-        <input type='submit' data-operation='downloadPackage' value='Download InDesign Package zip file'/>
-        <input type='submit' data-operation='storePdf' value='Store PDF at MediaFerry server'/>
-        <input type='submit' data-operation='storePackage' value='Store InDesign Package zip file at Mediaferry Server'/>
+        <input class='class1' type='submit' data-operation='editDocument' value='Edit Document' />
+        <input class='class1' type='submit' data-operation='downloadPdf' value='Download PDF'/>
+        <input class='class1' type='submit' data-operation='downloadPackage' value='Download InDesign Package zip file'/>
+        <input class='class1' type='submit' data-operation='storePdf' value='Store PDF at MediaFerry server'/>
+        <input class='class1' type='submit' data-operation='storePackage' value='Store InDesign Package zip file at Mediaferry Server'/>
       </form>
     </div>
     <div class='oneForm'>
@@ -228,11 +235,20 @@
     return false; // MUST return false or chaos ensues, browser reloads with POST.
   }
 
-  function submitDocumentForm($form) {
+  // this bizarre code below tried to implement // https://stackoverflow.com/questions/2066162/how-can-i-get-the-button-that-caused-the-submit-from-the-form-submit-event
+  // but that doesn't work in firefox, which does not support document.activeElement
+  // So I implemented .on('click') for all of the submit buttons
+  // and also did onsubmit in the html above to be able to cancel the automatic form GET.
+  $('#documentForm .class1').on('click', function(event) {
+    $button = $(event.target);
+    $form = $(event.target).parent();
+    submitDocumentForm2($form, $button);
+  });
+
+  function submitDocumentForm2($form, $button) {
     // generic handler for various submit buttons on one form.
-    var $button = $(document.activeElement); // https://stackoverflow.com/questions/2066162/how-can-i-get-the-button-that-caused-the-submit-from-the-form-submit-event
+    // var $button = $(document.activeElement);
     operation = $button.data('operation');
-    console.log('submitDocumentForm: button: ', $button[0], '; operation: ', operation);
     var a = {
       documentId: $form.find('.documentId').val(),
       genericEvents: genericEvents
@@ -263,6 +279,7 @@
       }
       break;
       default:
+      console.log('submitDocumentForm2: button: ', $button[0], '; operation: ', operation, 'UNRECOGNISED');
       break;
     }
 
@@ -325,15 +342,29 @@
     $('#listTemplatesHere').html('<div class="templateGrid"></div>');
     $templates.each(function(i,e){
       $template = $(e);
-      description = $template.children('description').text(); // and not document.description
-      name = $template.children('name').text();
-      previewBase64 = $template.children('document').children('preview').text();
+      var templateId = $template.children('id').text();
+      var description = $template.children('description').text(); // and not document.description
+      var name = $template.children('name').text();
+      var previewBase64 = $template.children('document').children('preview').text();
       var image = new Image();
       image.src = 'data:image/jpg;base64,'+previewBase64;
-      $box=$('<div class="oneBox"><div class="boxText"><b>'+name+'</b>'+'<br />'+description+'</div></div>')
-      $image = $(image);
+      var $box=$('<div class="oneBox"><div class="boxText"><b>'+name+'</b>'+'<br />'+description+'</div></div>')
+      var $image = $(image);
       $image.css('margin', '0.5vw').css('margin-top', 0).css('z-index', '10');
       $box.prepend($image);
+      // DO NOT FORGET that data- attributes are all lower case.
+      var $button = $('<div class="bottomRight"><input class="startButton" type="submit" data-templateid="'+templateId+'" value="Start" /></div>');
+      $box.append($button);
+      $box.find('.startButton').on('click', function(event){
+        console.log('clcik target:', event.target);
+        var templateId = $(event.target).data('templateid');
+        var a = {
+          callSequence: startTemplateCallSequence,
+          genericEvents: genericEvents,
+          templateId: templateId
+        }
+        L$.startSequence(a);
+      });
 
       $('.templateGrid').append($box);
     });
@@ -408,7 +439,14 @@
       {f:L$.logoutFromServer, stage:'Logging out from server'}
     ];
 
-    // if (wantTemplateslessJob) { callSequence0.push({f:L$.startTemplatelessTemplateJob, stage: 'Starting templateless template job'}); } // NOTE executing this later will change the value of a.callSequence
+    startTemplateCallSequence = [
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.startTemplate, stage: 'Starting Template'},
+      {f:L$.editJob, stage: 'Editing version copy'}, // will logout on completion
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.setAllItemsToNeedsReview, stage: 'setting all items to "needs Review" status'},
+      {f:L$.logoutFromServer, stage:'Logging out from server'}
+    ];
 
   });
 
