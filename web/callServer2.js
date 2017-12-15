@@ -1,8 +1,10 @@
 // Library of functions for calling the one2edit server API
 // This code here presumes that jQuery is already loaded.
 
-
 // javascript module pattern design taken from "Loose Augmentation" section of http://www.adequatelygood.com/JavaScript-Module-Pattern-In-Depth.html
+
+// This next line tells ESlint to ignore the undeclared one2edit function, which is provided externally.
+/*global one2edit:true*/
 
 var L$ = (function(my) {
 
@@ -79,7 +81,7 @@ var L$ = (function(my) {
   function maybeProgress(a, event, optionalExtras) {
     // if a handler is defined for the current event in the call sequence, execute it.
     // If it's not defined, look for a generic handler.
-    if ((typeof a != 'undefined') && (typeof a.sequenceIndex != 'undefined') && (typeof a.callSequence != 'undefined ') && (typeof a.callSequence[a.sequenceIndex] != 'undefined')) { // cope with sequenceIndex undefined, or off either end of array
+    if ((typeof a != 'undefined') && (typeof a.sequenceIndex != 'undefined') && (typeof a.callSequence != 'undefined') && (typeof a.callSequence[a.sequenceIndex] != 'undefined')) { // cope with sequenceIndex undefined, or off either end of array
       if (typeof (a.callSequence[a.sequenceIndex])[event]== 'function') {
         ((a.callSequence[a.sequenceIndex])[event])(a, event, optionalExtras);
       } else if ((typeof a.callSequence[a.sequenceIndex].f == 'function') && (typeof a.genericEvents != 'undefined') && (typeof a.genericEvents[event] == 'function')) {
@@ -91,6 +93,9 @@ var L$ = (function(my) {
       (a.genericEvents[event])(a, event, optionalExtras);
     }
   }
+
+  my.new21sessionUrl = ''; // must be set up by calling code.
+
 
   // Start a session with the one2edit server by logging in with username and password.
   // To make the system marginally more secure, no one2edit passwords are sent from MediaFerry to the user's browser here.
@@ -116,7 +121,7 @@ var L$ = (function(my) {
     var myData = {};
     if (typeof a.username == 'string') { myData.username = a.username; }
     $.ajax( {
-      url: new21sessionUrl,
+      url: my.new21sessionUrl,
       type: "POST",
       data: myData,
       error: function(jqXHR, textStatus, errorThrown) {
@@ -128,7 +133,6 @@ var L$ = (function(my) {
       success: function(xml) {
         a.$xml = $(xml);
         a.one2editSession = {};
-        var uploadedMastersFolderName = 'UploadedMasters';
         // convert xml jQuery object into plain javascript object
         ['code', 'message', 'username', 'clientId', 'sessionId', 'baseUrl', 'apiUrl' ].forEach(function(e) { a.one2editSession[e] = a.$xml.find(e).text(); });
         if (a.one2editSession.code != '') {
@@ -195,7 +199,7 @@ var L$ = (function(my) {
     };
     $.extend(myData, data);
     // console.log('callServer: ', myData);
-    ajaxCallObject = {
+    var ajaxCallObject = {
       url: a.one2editSession.apiUrl,
       type: "POST",
       data: myData,
@@ -205,7 +209,8 @@ var L$ = (function(my) {
           (a.onAjaxError(a, jqXHR, textStatus, errorThrown));
         }
       },
-      success: function(returnedData, textStatus, jqXHR) {
+      // bizarrely, the
+      success: function(returnedData, textStatus, jqXHR) { // eslint-disable-line no-unused-vars
         a.$xml = $(returnedData); // the is the only way I can make sense of the weird returned object https://stackoverflow.com/questions/19220873/how-to-read-xml-file-contents-in-jquery-and-display-in-html-elements
         // console.log('callServer: success: returnedData:', returnedData);
         maybeProgress(a, 'onApiResponse');
@@ -249,7 +254,7 @@ var L$ = (function(my) {
     fd.append('command', 'asset.upload');
     fd.append('projectId', a.one2editSession.projectId);
     fd.append('folderIdentifier', '/UploadedPackages');
-    realSuccess = function(a) {
+    var realSuccess = function(a) {
       // console.log('submitForm: success: data:', a.$xml[0]);
       a.zipFileIdentifier = a.$xml.find('identifier').text(); // a full pathname in the asset space
       passOn(a);
@@ -299,7 +304,7 @@ var L$ = (function(my) {
       // console.log('searchForInddFile: Folder: ', folderIdentifier, ' ', callServerData);
 
       my.callServer(a, callServerData, function(a) {
-        $allFiles = a.$xml.find('asset').children('type:contains("file")').parent(); // file assets
+        var $allFiles = a.$xml.find('asset').children('type:contains("file")').parent(); // file assets
         $allFiles.each(function(i,e) {
           var $asset = $(e);
           if ($asset.children('name').text().match(/\.indd$/i) != null) { // it is an InDesign file
@@ -310,9 +315,9 @@ var L$ = (function(my) {
           }
         });
         if (!foundInddFile) { // file is not in this folder, look in subfolders
-          $allFolders = a.$xml.find('asset').children('type:contains("folder")').parent();
+          var $allFolders = a.$xml.find('asset').children('type:contains("folder")').parent();
           $allFolders.each(function(i,e) { // this function called for each subfolder
-            newFolderIdentifier = $(e).find('identifier').text();
+            var newFolderIdentifier = $(e).find('identifier').text();
             searchForInddFile(a, newFolderIdentifier);
             if (foundInddFile) { return false; } // same as break
           });
@@ -378,7 +383,7 @@ var L$ = (function(my) {
       documentId: a.documentId
     }, function(a) {
       // console.log('doPopulateContentGroup: layer.list success: xml: ', a.$xml[0]); // we have a successful API call result
-      $allLayers = a.$xml.find('layer');
+      var $allLayers = a.$xml.find('layer');
       var editableLayersXml = '';
       $allLayers.each(function(i, e) {
         var $layer = $(e);
@@ -471,7 +476,7 @@ var L$ = (function(my) {
         result: 'file',
         sessionId: a3.one2editSession.sessionId
       }
-      p2 = [];
+      var p2 = [];
       Object.keys(parameters).forEach(function(e) { p2.push(encodeURIComponent(e)+'='+encodeURIComponent(parameters[e])); })
       url += '?' + p2.join('&');
       console.log('startDownload: url: ', url);
@@ -486,7 +491,7 @@ var L$ = (function(my) {
     // It seems to be picking up a global copy of "a". Ah, this is all within 'downloadFile', and "a" is global within that.
     // TODO:  Actually, push and pop it, like "a2.aPushed = a"
     // and passOn(a2.aPushed).
-    function goBackToFirstSequence(a4) {
+    function goBackToFirstSequence(a4) { // eslint-disable-line no-unused-vars
       // pick up the first sequence from the enclosing function scope, and restart that. Unbelievably, it works perfectly.
       // this is how you do subroutines using this callSequence idea.
       // I could actually do this quite neatly. Have a push and pop operation on `a`.
@@ -605,7 +610,7 @@ var L$ = (function(my) {
       var $folders = a.$xml.find('folder').children(selector).parent();
       $folders.each(function(i,e) {
         // this makes sure we don't have multiple folders containg this text.
-        $folder = $(e);
+        var $folder = $(e);
         if ($folder.children('name').text() == a.folderName) {
           a.$folder = $folder;  // old code
           if (typeof a.one2editSession.folderId == 'undefined') { a.one2editSession.folderId = []; }
@@ -624,7 +629,7 @@ var L$ = (function(my) {
   function findFileInFolder(a) {
     // a.type is 'workflow', 'template' or 'document'
     // folderId for the type has been previously set up
-    folderId = a.one2editSession.folderId[a.type];
+    var folderId = a.one2editSession.folderId[a.type];
     delete a.$file;
     my.callServer(a,{
       command: a.type+'.list',
@@ -633,7 +638,7 @@ var L$ = (function(my) {
       var $files = a.$xml.find('name:contains("'+a.fileName+'")').parent();
       $files.each(function(i,e) {
         // this makes sure we don't have multiple files containg this text.
-        $file = $(e);
+        var $file = $(e);
         if ($file.children('name').text() == a.fileName) {
           a.$file = $file;  // old code
           if (typeof a.one2editSession.fileId == 'undefined') { a.one2editSession.fileId = []; }
@@ -651,7 +656,7 @@ var L$ = (function(my) {
 
   // This routine starts a template job involving a master document and a workflow without ever needing a template.
   // The disadvantage is that it cannot have any tags.
-  function startTemplatelessTemplateJobReally(a, callSequence) {
+  function startTemplatelessTemplateJobReally(a) {
     console.log('startTemplatelessTemplateJobReally: a: ', a, '; xmlPassedIn:', a.$xml[0]);
     a.workflowId = a.$file.children('id').text();
     a.newDocumentName = a.$document.children('name').text() + ' Version Copy';
@@ -739,11 +744,11 @@ var L$ = (function(my) {
       mode: 'VERSION'
     },function(a){
       // console.log('startTemplate: realSuccess: xml: ', a.$xml[0]);
-      $document = a.$xml.find('document'); // that is the version copy, not the master document
+      var $document = a.$xml.find('document'); // that is the version copy, not the master document
       a.versionCopyDocumentId = $document.children('id').text();
-      $jobs = a.$xml.find('job');
+      var $jobs = a.$xml.find('job');
       $jobs.each(function(i,e) { console.log('startTemplate: job:', i,':',e ); });
-      $jobStarted = $jobs.filter(function(){
+      var $jobStarted = $jobs.filter(function(){
         var statusText = $(this).find('status').text();
         var truth = (statusText == 'STARTED');
         // console.log('filter: status:', statusText, truth);

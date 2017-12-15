@@ -17,7 +17,8 @@
 
   exportToJavascript('new21sessionUrl', 'new21session.php'); // the new21session.php web service will be in the same folder as the one this php came from.
   ?>
-
+  <script> L$.new21sessionUrl = new21sessionUrl; </script>
+  
   <style>
   .one2edit { /* This is the box that the one2edit Flash screen inhabits, if we use it */
     width:100%; /* leaving it at 100% means that the Flash plugin changes content dynamically with the screen size. */
