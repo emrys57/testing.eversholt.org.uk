@@ -538,6 +538,9 @@ var L$ = (function(my) {
         idleTimeout: 900,
         editor: {
           closeBehavior: one2edit.editor.CLOSE_BEHAVIOR_LOGOUT,
+        },
+        jobEditor: {
+          // need an empty object here, and not just a missing jobEditor, because one2edit does not properly delete settings on one2edit.destroy
         }
       }
     };
