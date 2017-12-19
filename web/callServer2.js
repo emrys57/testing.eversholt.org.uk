@@ -375,6 +375,7 @@ var L$ = (function(my) {
   // Move any content from an editable layer to the Editable Content Group just created.
   // 'a.toGroupId' contains the response to a 'document.group.add' API call. a.$document is the document.
   // All of any layer whose name starts "Editable" is moved to the Editable Content Group.
+  // TODO: if there is no editable content, make all content editable. Or it does not appear in the template list.
   my.doPopulateContentGroup = function(a) {
     // I cannot filter the layers by name with a regular expression. I need to list the layers and sort out which ones I want here.
     // console.log('doPopulateContentGroup: toGroupId: ', a.toGroupId, '; documentId: ', a.documentId);
