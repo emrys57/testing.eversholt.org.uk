@@ -115,34 +115,31 @@ var L$ = (function(my) {
   // before logging in and providing the sessionId.
   // THAT AUTHORISATION CODE HAS NOT YET BEEN WRITTEN. Someone needs to go and do that.
 
-  // TODO: make this code use the generic callServer routine, overriding URL and data.
   my.startSession = function(a) {
     // Start a session with the one2edit server, by calling the MediaFerry server and asking it to tell you the sessionId.
     var myData = {};
     if (typeof a.username == 'string') { myData.username = a.username; }
-    $.ajax( {
-      url: my.new21sessionUrl,
-      type: "POST",
-      data: myData,
-      error: function(jqXHR, textStatus, errorThrown) {
-        console.log('startSession: ajax error: textStatus: ', textStatus, 'errorThrown: ', errorThrown, ' jqXHR: ', jqXHR);
-        if (typeof a.onAjaxError == 'function') { // optionally signal ajax error to calling function.
-          (a.onAjaxError(a, jqXHR, textStatus, errorThrown));
-        }
-      },
-      success: function(xml) {
-        a.$xml = $(xml);
-        a.one2editSession = {};
-        // convert xml jQuery object into plain javascript object
-        ['code', 'message', 'username', 'clientId', 'sessionId', 'baseUrl', 'apiUrl' ].forEach(function(e) { a.one2editSession[e] = a.$xml.find(e).text(); });
-        if (a.one2editSession.code != '') {
-          console.log('one2edit server login failed: code: ', a.one2editSession.code, '; message: ', a.one2editSession.message);
-          maybeProgress(a, 'loginFailed');
-          return;
-        }
-        passOn(a); // success code has to call passOn to move the callSequence on.
+    a.one2editSession = {}; // make sure it is empty
+    my.callServer(a, {}, function(a) {
+      ['code', 'message', 'username', 'clientId', 'sessionId', 'baseUrl', 'apiUrl' ].forEach(function(e) { a.one2editSession[e] = a.$xml.find(e).text(); });
+      if (a.one2editSession.code != '') {
+        console.log('one2edit server login failed: code: ', a.one2editSession.code, '; message: ', a.one2editSession.message);
+        maybeProgress(a, 'loginFailed');
+        return;
       }
+      passOn(a);
+    },
+    {
+      // replacement parameters to override those created by callServer, because we're calling a differnet server.
+      url: my.new21sessionUrl,
+      data: myData
     });
+  };
+
+  // from https://stackoverflow.com/questions/2338439/select-element-based-on-exact-text-contents
+  // extend jQuery to add a :containsExact("someText") selector
+  $.expr[":"].containsExact = function (obj, index, meta, stack) { // eslint-disable-line no-unused-vars
+    return (obj.textContent || obj.innerText || $(obj).text() || "") == meta[3];
   };
 
   // These routines locate particular files and folders in the one2edit server.
@@ -184,7 +181,6 @@ var L$ = (function(my) {
   }
 
 
-// TODO: use maybeProgress to pass ajax errors to a generic event handler.
   my.callServer = function(a, data, realSuccess, moreAjaxStuff) {
     // call the one2edit server.
     // the 'realSuccess' function is only called if the server does not return an error code.
@@ -205,11 +201,8 @@ var L$ = (function(my) {
       data: myData,
       error: function(jqXHR, textStatus, errorThrown) {
         console.log('callServer: ajax error: textStatus: ', textStatus, 'errorThrown: ', errorThrown, ' jqXHR: ', jqXHR);
-        if (typeof a.onAjaxError == 'function') { // optionally signal ajax error to calling function. Provide this function if you need it.
-          (a.onAjaxError(a, jqXHR, textStatus, errorThrown));
-        }
+        maybeProgress(a, 'onAjaxError', {jqXHR: jqXHR, textStatus: textStatus, errorThrown: errorThrown, url: ajaxCallObject.url, data: ajaxCallObject.data});
       },
-      // bizarrely, the
       success: function(returnedData, textStatus, jqXHR) { // eslint-disable-line no-unused-vars
         a.$xml = $(returnedData); // the is the only way I can make sense of the weird returned object https://stackoverflow.com/questions/19220873/how-to-read-xml-file-contents-in-jquery-and-display-in-html-elements
         // console.log('callServer: success: returnedData:', returnedData);
@@ -375,7 +368,7 @@ var L$ = (function(my) {
   // Move any content from an editable layer to the Editable Content Group just created.
   // 'a.toGroupId' contains the response to a 'document.group.add' API call. a.$document is the document.
   // All of any layer whose name starts "Editable" is moved to the Editable Content Group.
-  // TODO: if there is no editable content, make all content editable. Or it does not appear in the template list.
+  // If there is no editable content, make all content editable. Or the document does not appear in the template list.
   my.doPopulateContentGroup = function(a) {
     // I cannot filter the layers by name with a regular expression. I need to list the layers and sort out which ones I want here.
     // console.log('doPopulateContentGroup: toGroupId: ', a.toGroupId, '; documentId: ', a.documentId);
@@ -386,20 +379,23 @@ var L$ = (function(my) {
       // console.log('doPopulateContentGroup: layer.list success: xml: ', a.$xml[0]); // we have a successful API call result
       var $allLayers = a.$xml.find('layer');
       var editableLayersXml = '';
+      function addLayerToXml($layer) {
+        var layerId = $layer.find('id').text();
+        editableLayersXml += ' <id>' + layerId + '</id> '; // accumulate layer filter xml text.
+      }
       $allLayers.each(function(i, e) {
         var $layer = $(e);
         var name = $layer.find('name').text();
         var editable = (name.match(/^editable/i) != null); // any layer starting with 'editable', case-independent, is matched
         console.log('allLayers.each: name: ', name, '; editable: ', editable);
         if (editable) { // then include this layer in the content filter for moving into the Content Group
-          var layerId = $layer.find('id').text();
-          editableLayersXml = editableLayersXml + ' <id>' + layerId + '</id> '; // accumulate layer filter xml text.
+          addLayerToXml($layer);
         }
       });
       console.log('editableLayersXml: ', editableLayersXml);
       if (editableLayersXml == '') { // no editable layers, warn the user, special callback for this function only
         maybeProgress(a, 'noEditableLayers');
-        passOn(a);
+        $allLayers.each(function(i, e) { addLayerToXml($(e)); }); // Make everything editable if nothing is editable
       }
       var filterXml = '<filters> <itemlayer> ' + editableLayersXml + ' </itemlayer> </filters>';
       var serverData = {
@@ -443,6 +439,21 @@ var L$ = (function(my) {
       data: myData,
       url:'fetchFile.php'
     });
+  }
+
+  // push and pop entire "a" objects.
+  // These are useful for an effective subroutine functionality using the callSequence scheme.
+  my.aPush = function(aOld, aNew) { // CANNOT be included in a callSequence, must be called explicitly
+    console.log('aPush: aOld:', aOld);
+    console.log('aPush: aNew:', aNew);
+    aNew.aPushed = aOld; // store a pointer to the old sequence in the new one
+    my.startSequence(aNew); // start the new sequence
+  }
+  my.aPop = function(aOld) { // CAN be included as the last element in a callSequence
+    console.log('aPop: aOld:', aOld);
+    var aNew = aOld.aPushed; // get the previously-stored sequence back
+    console.log('aPop: aNew:', aNew);
+    passOn(aNew); // execute the next function in the original call sequence
   }
 
   // these routines download files to the user's browser.
@@ -490,27 +501,20 @@ var L$ = (function(my) {
     // magic up a new copy of "a" and call "startSequence" on it.
     // This routine here goes back to the first sequence.
     // It seems to be picking up a global copy of "a". Ah, this is all within 'downloadFile', and "a" is global within that.
-    // TODO:  Actually, push and pop it, like "a2.aPushed = a"
-    // and passOn(a2.aPushed).
-    function goBackToFirstSequence(a4) { // eslint-disable-line no-unused-vars
-      // pick up the first sequence from the enclosing function scope, and restart that. Unbelievably, it works perfectly.
-      // this is how you do subroutines using this callSequence idea.
-      // I could actually do this quite neatly. Have a push and pop operation on `a`.
-      passOn(a); // a, not a4
-    }
 
     var a2 = {
       callSequence: [
         {f:my.startSession, stage:'Logging in second session'},
         {f:startDownload, stage:'starting download in second session'}, // and then do not log out
-        {f:goBackToFirstSequence, stage:'going back to first sequence'}
+        // {f:goBackToFirstSequence, stage:'going back to first sequence'}
+        {f:my.aPop, stage:'going back to first sequence'}
       ],
       username: a.one2editSession.username,
       genericEvents: a.genericEvents,
       documentId: a.documentId,
       downloadCommand: a.downloadCommand
     }
-    my.startSequence(a2);
+    my.aPush(a, a2); // push a onto a2 and start a2.
     console.log('downloadPdf: started second sequence: a2:', a2); // never reaches here!
   }
 
@@ -602,7 +606,6 @@ var L$ = (function(my) {
     findFileInFolder(a);
   }
 
-  // TODO: implement https://stackoverflow.com/questions/2338439/select-element-based-on-exact-text-contents
   function findFolderWithName(a) {
     // type is 'workflow', 'template' or 'document'
     delete a.$folder;
@@ -610,17 +613,11 @@ var L$ = (function(my) {
       command: a.type+'.folder.list',
       depth: 0 // recurse indefinitely
     }, function(a) {
-      var selector = 'name:contains('+a.folderName+')';
-      var $folders = a.$xml.find('folder').children(selector).parent();
-      $folders.each(function(i,e) {
-        // this makes sure we don't have multiple folders containg this text.
-        var $folder = $(e);
-        if ($folder.children('name').text() == a.folderName) {
-          a.$folder = $folder;  // old code
-          if (typeof a.one2editSession.folderId == 'undefined') { a.one2editSession.folderId = []; }
-          a.one2editSession.folderId[a.type] = $folder.children('id').text();  // retain folder Id for each type, potentially
-        }
-      });
+      var selector = 'name:containsExact('+a.folderName+')';
+      var $folder = a.$xml.find('folder').children(selector).parent();
+      a.$folder = $folder;  // old code
+      if (typeof a.one2editSession.folderId == 'undefined') { a.one2editSession.folderId = []; }
+      a.one2editSession.folderId[a.type] = $folder.children('id').text();  // retain folder Id for each type, potentially
       if (typeof a.$folder == 'undefined') {
         console.log('findFolderWithName: folder not found: ', '/'+a.folderName);
         maybeProgress(a, 'cannotFindFolder', a.folderName);
@@ -639,16 +636,10 @@ var L$ = (function(my) {
       command: a.type+'.list',
       folderId: folderId
     }, function(a) {
-      var $files = a.$xml.find('name:contains("'+a.fileName+'")').parent();
-      $files.each(function(i,e) {
-        // this makes sure we don't have multiple files containg this text.
-        var $file = $(e);
-        if ($file.children('name').text() == a.fileName) {
-          a.$file = $file;  // old code
-          if (typeof a.one2editSession.fileId == 'undefined') { a.one2editSession.fileId = []; }
-          a.one2editSession.fileId[a.type] = $file.children('id').text();  // retain file Id for each type, potentially
-        }
-      });
+      var $file = a.$xml.find('name:containsExact("'+a.fileName+'")').parent();
+      a.$file = $file;  // old code
+      if (typeof a.one2editSession.fileId == 'undefined') { a.one2editSession.fileId = []; }
+      a.one2editSession.fileId[a.type] = $file.children('id').text();  // retain file Id for each type, potentially
       if (typeof a.$file == 'undefined') {
         console.log('findFileWithName: file not found: ', a.fileName);
         maybeProgress(a, 'cannotFindFile', a.fileName);

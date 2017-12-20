@@ -10,7 +10,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://demo.one2edit.com/scripts/one2edit.js"></script>
   <script src="https://code.jquery.com/jquery-3.2.1.js"></script>
-  <script src="callServer2.js"></script>
+  <script src="mfSmart1.js"></script>
   <?php
 
   require('eDebug.php');
@@ -18,7 +18,7 @@
   exportToJavascript('new21sessionUrl', 'new21session.php'); // the new21session.php web service will be in the same folder as the one this php came from.
   ?>
   <script> L$.new21sessionUrl = new21sessionUrl; </script>
-  
+
   <style>
   .one2edit { /* This is the box that the one2edit Flash screen inhabits, if we use it */
     width:100%; /* leaving it at 100% means that the Flash plugin changes content dynamically with the screen size. */
@@ -198,7 +198,7 @@
     onDone: genericEvent,
     onError: genericEvent,
     noEditableLayers: function(a, event) {
-      $('#progressText').append('NO EDITABLE LAYERS! <br />');
+      $('#progressText').append('NO EDITABLE LAYERS! Making all layers editable: ');
     },
     beforeApiCall: function(a, event, ajaxCallObject) {
       console.log('callServer: beforeApiCall: ', ajaxCallObject);
@@ -223,6 +223,18 @@
     },
     cannotFindFile: function(a, event, fileName) {
       $('#progressText').append('Cannot find file: '+fileName+'<br />');
+    },
+    onAjaxError: function(a, event, ajaxPackage) {
+      console.log('maybeProgress onAjaxError: ajaxPackage:', ajaxPackage);
+      var errorHtml = '<div>AJAX error 🙁 !<br /><div style="margin-left: 2em;">url: '+ajaxPackage.url
+      +'<br />data: '
+      +(JSON.stringify(ajaxPackage.data, null, 4)).replace(/(?:\r\n|\r|\n)/g, '<br />').replace(/\\n/g,'').replace(/    /g,'&emsp;')
+      +'<br />textStatus: '+ajaxPackage.textStatus+'<br />errorThrown: '+ajaxPackage.errorThrown
+      +'<br />jqXHR: '
+      +(JSON.stringify(ajaxPackage.jqXHR, null, 4)).replace(/(?:\r\n|\r|\n)/g, '<br />').replace(/\\n/g,'').replace(/    /g,'&emsp;')
+      +'<br /></div></div>';
+      // do it this way with a single string because otherwise .append tries to "help" by inserting extra html.
+      $('#progressText').append(errorHtml);
     }
   };
 
