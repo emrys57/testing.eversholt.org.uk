@@ -107,6 +107,8 @@
         <input class='class1' type='submit' data-operation='storePdf' value='Store PDF at MediaFerry server'/>
         <input class='class1' type='submit' data-operation='storePackage' value='Store InDesign Package zip file at Mediaferry Server'/>
         <input class='class1' type='submit' data-operation='editTemplateless' value='Edit Templateless' />
+        <input class='class1' type='submit' data-operation='findAssetInfo' value='Find Asset info' />
+        <input class='class1' type='submit' data-operation='moveToMediaFerry' value='Move Document to MediaFerry' />
       </form>
     </div>
     <div class='oneForm'>
@@ -147,6 +149,14 @@
   </div>
 
   <script type="text/javascript">
+
+  function aGeneric(callSequence) {
+    // return a generic 'a' object
+    return {
+      genericEvents: genericEvents,
+      callSequence: callSequence
+    }
+  }
 
   // this is the sequence of server API calls to make.
   // We have to declare it here so that submitForm2 can find it
@@ -236,16 +246,25 @@
       +'<br /></div></div>';
       // do it this way with a single string because otherwise .append tries to "help" by inserting extra html.
       $('#progressText').append(errorHtml);
+    },
+    documentHasVersions: function(a, event, count) {
+      console.log('checkDocumentHasNoVersionCopies: documentId: ', a.documentId, ' has ', count, ' versions.');
+      var errorHtml = 'Document '+a.documentId+' has '+count+' version '+((count > 1)?'copies':'copy')+'.<br />';
+      errorHtml += 'It cannot be moved or deleted. Quitting.<br />';
+      $('#progressText').append(errorHtml);
+    },
+    notDeletingAsset: function(a, event) {
+      console.log('deleteAssetFolder: not deleting asset folder.');
+      $('#progressText').append('Not deleting assets, still needed. ');
+    },
+    nonXmlReturn: function(a, event) {
+      $('#progressText').append('Server response is not XML. Quitting.');
     }
   };
 
   function submitForm2() { // called when submit button is pressed on form
-    var a = {
-      // this object is the initial value of 'a' which is passed through all the library functions.
-      $form:$('#fileUploadForm'),
-      callSequence: callSequence0,
-      genericEvents: genericEvents
-    };
+    var a = aGeneric(callSequence0);
+    a.$form = $('#fileUploadForm');
     L$.startSequence(a);
     return false; // MUST return false or chaos ensues, browser reloads with POST.
   }
@@ -264,77 +283,60 @@
     // generic handler for various submit buttons on one form.
     // var $button = $(document.activeElement);
     operation = $button.data('operation');
-    var a = {
-      documentId: $form.find('.documentId').val(),
-      genericEvents: genericEvents
-    }
-    delete a.store;
+    var sequences = {
+      'editDocument':editCallSequence,
+      'downloadPdf':pdfCallSequence,
+      'downloadPackage':packageCallSequence,
+      'storePdf':storeCallSequence,
+      'storePackage':storeCallSequence,
+      'editTemplateless':startTemplatelessCallSequence,
+      'findAssetInfo':assetInfoCallSequence,
+      'moveToMediaFerry':moveToMediaFerryCallSequence
+    };
+    var callSequence = sequences[operation];
+    if (typeof callSequence == 'undefined') { console.log('submitDocumentForm2: button: ', $button[0], '; operation: ', operation, 'UNRECOGNISED'); }
+    var a = aGeneric(callSequence);
+    a.documentId = $form.find('.documentId').val()
     switch (operation) {
-      case 'editDocument':
-      a.callSequence = editCallSequence;
-      break;
-      case 'downloadPdf': // to browser
-      a.callSequence = pdfCallSequence;
-      break;
-      case 'downloadPackage':
-      a.callSequence = packageCallSequence;
-      break;
       case 'storePdf':
-      a.callSequence = storeCallSequence;
       a.store = {
         documentId: a.documentId,
         fileType: 'pdf'
       }
       break;
+      case 'moveToMediaFerry':
       case 'storePackage':
-      a.callSequence = storeCallSequence;
       a.store = {
         documentId: a.documentId,
         fileType: 'package'
       }
       break;
-      case 'editTemplateless':
-      a.callSequence = startTemplatelessCallSequence;
-      break;
       default:
-      console.log('submitDocumentForm2: button: ', $button[0], '; operation: ', operation, 'UNRECOGNISED');
       break;
     }
-
     L$.startSequence(a);
     return false; // MUST return false or chaos ensues.
   }
 
   function submitAdminForm($form) {
-    var a = {
-      callSequence: adminCallSequence,
-      genericEvents: genericEvents
-    }
-    L$.startSequence(a);
+    L$.startSequence(aGeneric(adminCallSequence));
     return false;
   }
 
   function submitTemplatedForm($form) {
-    var a = {
-      $form: $form,
-      callSequence: templatedCallSequence,
-      genericEvents: genericEvents
-    }
+    var a = aGeneric(templatedCallSequence);
+    a.$form = $form;
     a.template = {
       tags: $form.find('#tagField').val(), // tags are plain text separated by spaces. Punctuation counts as space.
       name: $form.find('#templateName').val(),
       description: $form.find('#descriptionText').val()
-    }
+    };
     L$.startSequence(a);
     return false;
   }
 
   function submitListForm($form) {
-    var a = {
-      callSequence: listTemplatesCallSequence,
-      genericEvents: genericEvents
-    }
-    L$.startSequence(a);
+    L$.startSequence(aGeneric(listTemplatesCallSequence));
     return false;
   }
 
@@ -374,7 +376,7 @@
       var $button = $('<div class="bottomRight"><input class="startButton" type="submit" data-templateid="'+templateId+'" value="Start" /></div>');
       $box.append($button);
       $box.find('.startButton').on('click', function(event){
-        console.log('clcik target:', event.target);
+        console.log('click target:', event.target);
         var templateId = $(event.target).data('templateid');
         var a = {
           callSequence: startTemplateCallSequence,
@@ -475,6 +477,22 @@
       {f:L$.startSession, stage: 'Logging In'},
       {f:L$.removeWorkflow, stage: 'Removing workflow from document'},
       // {f:L$.setAllItemsMasterToDone, stage: 'setting all items in master document to "Done" status'},
+      {f:L$.logoutFromServer, stage:'Logging out from server'}
+    ];
+
+    assetInfoCallSequence = [
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.findAssetFolderForDocument, stage: 'Finding asset folder'},
+      {f:L$.logoutFromServer, stage:'Logging out from server'}
+    ];
+
+    moveToMediaFerryCallSequence = [
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.checkDocumentHasNoVersionCopies, stage: 'Checking document can be deleted'},
+      {f:L$.storeFileAtMediaFerryServer, stage: 'Storing File at MediaFerry Server'},
+      {f:L$.findAssetFolderForDocument, stage: 'Finding asset folder'},
+      {f:L$.deleteDocument, stage: 'Deleting document'},
+      {f:L$.deleteAssetFolder, stage: 'Deleting asset folder'},
       {f:L$.logoutFromServer, stage:'Logging out from server'}
     ];
 

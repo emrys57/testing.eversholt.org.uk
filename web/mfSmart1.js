@@ -96,6 +96,10 @@ var L$ = (function(my) {
   }
 
   my.new21sessionUrl = ''; // must be set up by calling code.
+  my.uploadedPackagesPathname = '/UploadedPackages'; // pathname in asset space
+  my.uploadedTemplatesFoldername = 'UploadedTemplates';
+  my.uploadedMastersFolderName = 'UploadedMasters';
+  my.uploadedWorkflowsFolderName = 'UploadedWorkflows';
 
 
   // Start a session with the one2edit server by logging in with username and password.
@@ -147,17 +151,17 @@ var L$ = (function(my) {
   // The results of these lookups are placed into "a" for later routines to use. "a" accumulates extra info like this thoughout the callSequence.
   my.findUploadedMastersFolderId = function(a){
     a.type = 'document';
-    a.folderName = 'UploadedMasters';
+    a.folderName = my.uploadedMastersFolderName;
     findFolderWithName(a);
   };
   my.findUploadedTemplatesFolderId = function(a){
     a.type = 'template';
-    a.folderName = 'UploadedTemplates';
+    a.folderName = my.uploadedTemplatesFoldername;
     findFolderWithName(a);
   };
   my.findUploadedWorkflowsFolderId = function(a){
     a.type = 'workflow';
-    a.folderName = 'UploadedWorkflows';
+    a.folderName = my.uploadedWorkflowsFolderName;
     findFolderWithName(a);
   };
   my.findTemplatedWorkflow = function(a) {
@@ -210,16 +214,18 @@ var L$ = (function(my) {
         maybeProgress(a, 'onAjaxError', {jqXHR: jqXHR, textStatus: textStatus, errorThrown: errorThrown, url: ajaxCallObject.url, data: ajaxCallObject.data});
       },
       success: function(returnedData, textStatus, jqXHR) { // eslint-disable-line no-unused-vars
-        a.$xml = $(returnedData); // the is the only way I can make sense of the weird returned object https://stackoverflow.com/questions/19220873/how-to-read-xml-file-contents-in-jquery-and-display-in-html-elements
+        a.$xml = $(returnedData); // the is the only way I can make sense of the weird returned object
+        // https://stackoverflow.com/questions/19220873/how-to-read-xml-file-contents-in-jquery-and-display-in-html-elements
         // console.log('callServer: success: returnedData:', returnedData);
         maybeProgress(a, 'onApiResponse');
-        var code = a.$xml.find('error').children('code').text();
+        var code = a.$xml.children('error').children('code').text();
         if (code != '') { // then an error code has been returned at the top level of the API call
           var message = a.$xml.find('message').text();
           console.log('callServer: server returned error: code: ', code, '; message: ', message);
           maybeProgress(a, 'onError');
           return;
         }
+        // cannot find a way to check that returend data is somehow sensible xml
         maybeProgress(a, 'onSuccess');
         if (typeof realSuccess != 'undefined') {
           realSuccess(a); // when realSuccess is called, the API hasn't reported an error, AJAX hasn't reported an error, and the XML returned data is in a.$xml
@@ -252,7 +258,7 @@ var L$ = (function(my) {
     fd.append('clientId', a.one2editSession.clientId);
     fd.append('command', 'asset.upload');
     fd.append('projectId', a.one2editSession.projectId);
-    fd.append('folderIdentifier', '/UploadedPackages');
+    fd.append('folderIdentifier', my.uploadedPackagesPathname);
     var realSuccess = function(a) {
       // console.log('submitForm: success: data:', a.$xml[0]);
       a.zipFileIdentifier = a.$xml.find('identifier').text(); // a full pathname in the asset space
@@ -427,7 +433,7 @@ var L$ = (function(my) {
   // At exit, a.store.storedFilePathAtMediaFerry holds the path to the stored file at MediaFerry.
   // This code works for 'pdf' and 'package' types.
   my.storeFileAtMediaFerryServer = function(a) {
-    a.one2editSession = {}; // have to have an empty session if I am to use callServer
+    if (typeof a.one2editSession != 'object') { a.one2editSession = {}; }  // have to have at least an empty session if I am to use callServer
     if (typeof a.store != 'object') { a.store = {}; } // that would be a bug
     var extension = '';
     if (a.store.fileType == 'pdf') { extension = '.pdf'; }
@@ -765,8 +771,89 @@ var L$ = (function(my) {
     }); // no realSuccess, automatic passOn used.
   };
 
+  // Get info about a.documentId (which may be a master document or a version copy)
+  // If this is a master document instead of a version copy
+  // and if it has a defined asset package
+  // store the folder pathname, from /UploadedPackages in the asset space, in a.uploadedPackagePathname
+  // and the asset project number in a.uploadedProject
+  // otherwise these will be empty strings.
+  my.findAssetFolderForDocument = function(a) {
+    a.uploadedPackagePathname = '';
+    a.uploadedProject = '';
+    my.callServer(a, {
+      command: 'document.info',
+      id: a.documentId
+    }, function(a){
+      var $document = a.$xml.find('document');
+      var isVersion = ($document.children('isVersion').text() == 'true');
+      if (!isVersion) {
+        var $asset = $document.children('asset');
+        var assetPathName = $asset.children('identifier').text(); // gives full path name to indd file
+        var assetProject = $asset.children('project').text();
+        if (assetPathName.startsWith(my.uploadedPackagesPathname)) {
+          var packageRoot = assetPathName.replace(/^(\/[^/]+\/[^/]+).*/, '$1');
+          console.log('findAssetFolderForDocument: ', a.documentId, '; folder: ', packageRoot);
+          // Check here. Don't want to return anything (in case of a bug) that might delete the entire asset space!
+          if ((!packageRoot.startsWith(my.uploadedPackagesPathname))
+          || (my.uploadedPackagesPathname.length < 5)
+          || (packageRoot.trim().length < (my.uploadedPackagesPathname.length + 2))) {
+            console.log('findAssetFolderForDocument: FAILED CHECKS: Setting package to empty. was:', assetPathName);
+            packageRoot = '';
+            assetProject = '';
+          }
+          a.uploadedPackagePathname = packageRoot;
+          a.uploadedProject = assetProject;
+        }
+      }
+      console.log('findAssetFolderForDocument: ', a.documentId, '; folder: ', a.uploadedPackagePathname, '; project: ', a.uploadedProject, '; isVersion: ', isVersion);
+      passOn(a);
+    });
+  };
 
+  // this is quite important, because the API will allow you to delete a template master document, and then give you errors
+  // when you try to edit the version copies. But it is hard to find out if a document has versions.
+  // You'd think they'd be listed in the document info
+  // but they don't seem to be.
+  // If you delete a master then try to delete a version copy, you get a code 13194, "Document was trashed", specifying the id of the missing master.
+  // I have to use document.list and specify a documentID and that tells me all the versions.
+  my.checkDocumentHasNoVersionCopies = function(a) {
+    my.callServer(a, {
+      command: 'document.list',
+      documentId: a.documentId
+    }, function(a){
+      var $documents = a.$xml.find('documents').children('document');
+      var versionCount = $documents.length;
+      if (versionCount > 0) {
+        maybeProgress(a, 'documentHasVersions', versionCount);
+        return;
+      }
+      passOn(a);
+    });
+  };
 
+  // delete the document specified by a.documentId.
+  // Call checkDocumentHasNoVersionCopies before calling this, just to check.
+  my.deleteDocument = function(a) {
+    my.callServer(a, {
+      command: 'document.delete',
+      id: a.documentId
+    }); // automatic passOn
+  };
+
+  // delete the asset folder (and anything in it) specified by a.uploadedPackagePathname and a.uploadedProject
+  my.deleteAssetFolder = function(a) {
+    if ((typeof a.uploadedPackagePathname != 'string') || (a.uploadedPackagePathname == '')) {
+      console.log('deleteAssetFolder: No pathname, not deleting.');
+      maybeProgress(a, 'notDeletingAsset');
+      passOn(a);
+    } else {
+      my.callServer(a, {
+        command: 'asset.delete',
+        projectId: a.uploadedProject,
+        identifier: a.uploadedPackagePathname
+      }); // automatic passOn
+    }
+  };
 
   return my;
 }(L$ || { nameSpace: 'L$' }));
