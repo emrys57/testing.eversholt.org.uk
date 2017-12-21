@@ -106,6 +106,7 @@
         <input class='class1' type='submit' data-operation='downloadPackage' value='Download InDesign Package zip file'/>
         <input class='class1' type='submit' data-operation='storePdf' value='Store PDF at MediaFerry server'/>
         <input class='class1' type='submit' data-operation='storePackage' value='Store InDesign Package zip file at Mediaferry Server'/>
+        <input class='class1' type='submit' data-operation='editTemplateless' value='Edit Templateless' />
       </form>
     </div>
     <div class='oneForm'>
@@ -292,6 +293,9 @@
         fileType: 'package'
       }
       break;
+      case 'editTemplateless':
+      a.callSequence = startTemplatelessCallSequence;
+      break;
       default:
       console.log('submitDocumentForm2: button: ', $button[0], '; operation: ', operation, 'UNRECOGNISED');
       break;
@@ -459,6 +463,18 @@
       {f:L$.editJob, stage: 'Editing version copy'}, // will logout on completion
       {f:L$.startSession, stage: 'Logging In'},
       {f:L$.setAllItemsToNeedsReview, stage: 'setting all items to "needs Review" status'},
+      {f:L$.logoutFromServer, stage:'Logging out from server'}
+    ];
+
+    startTemplatelessCallSequence = [
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.findUploadedWorkflowsFolderId, stage: 'Find UploadedWorkflows folder'},
+      {f:L$.findTemplatelessWorkflow, stage: 'Finding templatelessWorkflow'},
+      {f:L$.startTemplateless, stage: 'Starting Templateless Template Job'},
+      {f:L$.editJob, stage: 'Editing master document'}, // will logout on completion
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.removeWorkflow, stage: 'Removing workflow from document'},
+      // {f:L$.setAllItemsMasterToDone, stage: 'setting all items in master document to "Done" status'},
       {f:L$.logoutFromServer, stage:'Logging out from server'}
     ];
 

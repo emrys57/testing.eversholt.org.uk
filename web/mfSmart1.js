@@ -1,3 +1,4 @@
+//
 // Library of functions for calling the one2edit server API
 // This code here presumes that jQuery is already loaded.
 
@@ -54,7 +55,7 @@ var L$ = (function(my) {
   my.startSequence = function(a) {
     a.sequenceIndex = -1;
     passOn(a);
-  }
+  };
 
   // "passOn" is called to finish one of the operations in "callSequence" and start the next.
   // It also optionally makes callbacks to show how the sequence is progressing.
@@ -75,7 +76,7 @@ var L$ = (function(my) {
   // I had originally intended that "passOn" be private to this library.
   // However, if the calling code wishes to insert its own functions into the callSequence (which is a very reasonable thing to do)
   // then it needs to be able to call passOn. So I made a public version too.
-  my.passOn = function(a) { passOn(a); } // eventually had to make it public
+  my.passOn = function(a) { passOn(a); }; // eventually had to make it public
 
   // "maybeProgress" works out whether the progress callbacks should be to a stage-specific fucntion, or a generic function, or not at all.
   function maybeProgress(a, event, optionalExtras) {
@@ -148,22 +149,27 @@ var L$ = (function(my) {
     a.type = 'document';
     a.folderName = 'UploadedMasters';
     findFolderWithName(a);
-  }
+  };
   my.findUploadedTemplatesFolderId = function(a){
     a.type = 'template';
     a.folderName = 'UploadedTemplates';
     findFolderWithName(a);
-  }
+  };
   my.findUploadedWorkflowsFolderId = function(a){
     a.type = 'workflow';
     a.folderName = 'UploadedWorkflows';
     findFolderWithName(a);
-  }
+  };
   my.findTemplatedWorkflow = function(a) {
     a.type = 'workflow';
     a.fileName = 'templatedWorkflow';
     findFileInFolder(a);
-  }
+  };
+  my.findTemplatelessWorkflow = function(a) {
+    a.type = 'workflow';
+    a.fileName = 'templatelessWorkflow';
+    findFileInFolder(a);
+  };
 
   my.findAssetProjectId = function(a) {
     my.callServer(a, {
@@ -178,7 +184,7 @@ var L$ = (function(my) {
       }
       passOn(a);
     });
-  }
+  };
 
 
   my.callServer = function(a, data, realSuccess, moreAjaxStuff) {
@@ -221,12 +227,12 @@ var L$ = (function(my) {
           passOn(a); // default if no success function is specified.
         }
       }
-    }
+    };
     if (typeof moreAjaxStuff == 'object') { $.extend(ajaxCallObject, moreAjaxStuff); }
     maybeProgress(a, 'beforeApiCall', ajaxCallObject);
     // console.log('callServer: beforeApiCall:', ajaxCallObject);
     $.ajax(ajaxCallObject);
-  }
+  };
 
 
 
@@ -251,13 +257,13 @@ var L$ = (function(my) {
       // console.log('submitForm: success: data:', a.$xml[0]);
       a.zipFileIdentifier = a.$xml.find('identifier').text(); // a full pathname in the asset space
       passOn(a);
-    }
+    };
     my.callServer(a, {}, realSuccess, { // extra info for the Ajax call here
       processData: false, // tell jQuery not to process the data
       contentType: false, // tell jQuery not to set content type
       data: fd // override data constructed by callServer, it has to be just fd and nothing else.
     });
-  }
+  };
 
   // ask one2edit to unzip the file just uploaded.
   // the zip file is at "a.zipFileIdentifier" at entry.
@@ -275,7 +281,7 @@ var L$ = (function(my) {
       a.extractedFolderIdentifier = a.$xml.find('identifier').text(); // the complete file path, in the asset space, of the extracted folder
       passOn(a);
     });
-  }
+  };
 
   // Hunt down the .indd file within the folders created by unzipping an InDesign package.
   // Recursively search through any folders for the first .indd file.
@@ -317,7 +323,7 @@ var L$ = (function(my) {
         }
       });
     }
-  }
+  };
 
 
   // one2edit "project documents" (or maybe just "projects") are different from the uplaoded InDesign packages.
@@ -341,7 +347,7 @@ var L$ = (function(my) {
       a.$document = a.$xml.find('document');
       passOn(a);
     });
-  }
+  };
 
   // one2edit project documents have "Content Groups" that can be used to define bits of the document to be edited.
   // We use "Editable Content Group" to define this, and this routine adds that content group to the project document, and leaves the content group empty.
@@ -363,7 +369,7 @@ var L$ = (function(my) {
       a.toGroupId = a.$xml.find('success').children('group').children('id').text();
       passOn(a);
     });
-  }
+  };
 
   // Move any content from an editable layer to the Editable Content Group just created.
   // 'a.toGroupId' contains the response to a 'document.group.add' API call. a.$document is the document.
@@ -409,7 +415,7 @@ var L$ = (function(my) {
         passOn(a);
       });
     });
-  }
+  };
 
   // This library code here usually executes at the user's browser.
   // Sometimes we need to move files not from one2edit to the broser, but from one2edit to the MediaFerry server.
@@ -430,7 +436,7 @@ var L$ = (function(my) {
       fileType: a.store.fileType,
       documentId: a.store.documentId,
       filename: 'document'+a.store.documentId+extension
-    }
+    };
     my.callServer(a, {}, function(a){
       a.store.storedFilePathAtMediaFerry = a.$xml.find('filePath').text();
       console.log('downloadFileToMediaFerryServer: downloadedFilePathAtMediaFerry: ', a.store.storedFilePathAtMediaFerry);
@@ -439,7 +445,7 @@ var L$ = (function(my) {
       data: myData,
       url:'fetchFile.php'
     });
-  }
+  };
 
   // push and pop entire "a" objects.
   // These are useful for an effective subroutine functionality using the callSequence scheme.
@@ -448,24 +454,24 @@ var L$ = (function(my) {
     console.log('aPush: aNew:', aNew);
     aNew.aPushed = aOld; // store a pointer to the old sequence in the new one
     my.startSequence(aNew); // start the new sequence
-  }
+  };
   my.aPop = function(aOld) { // CAN be included as the last element in a callSequence
     console.log('aPop: aOld:', aOld);
     var aNew = aOld.aPushed; // get the previously-stored sequence back
     console.log('aPop: aNew:', aNew);
     passOn(aNew); // execute the next function in the original call sequence
-  }
+  };
 
   // these routines download files to the user's browser.
   my.downloadPdf = function(a) {
     a.downloadCommand = 'document.export.pdf';
     downloadFile(a);
-  }
+  };
 
   my.downloadPackage = function(a) {
     a.downloadCommand = 'document.export.package';
     downloadFile(a);
-  }
+  };
 
   function downloadFile(a) {
     // How do I log out of this session when downloading PDF?
@@ -487,9 +493,9 @@ var L$ = (function(my) {
         id: a3.documentId,
         result: 'file',
         sessionId: a3.one2editSession.sessionId
-      }
+      };
       var p2 = [];
-      Object.keys(parameters).forEach(function(e) { p2.push(encodeURIComponent(e)+'='+encodeURIComponent(parameters[e])); })
+      Object.keys(parameters).forEach(function(e) { p2.push(encodeURIComponent(e)+'='+encodeURIComponent(parameters[e])); });
       url += '?' + p2.join('&');
       console.log('startDownload: url: ', url);
       window.open(url,'_blank');
@@ -513,7 +519,7 @@ var L$ = (function(my) {
       genericEvents: a.genericEvents,
       documentId: a.documentId,
       downloadCommand: a.downloadCommand
-    }
+    };
     my.aPush(a, a2); // push a onto a2 and start a2.
     console.log('downloadPdf: started second sequence: a2:', a2); // never reaches here!
   }
@@ -574,11 +580,11 @@ var L$ = (function(my) {
         }
       }
     });
-  }
+  };
 
   my.openAdmin = function(a) { // open the admin interface
     openFlash(a,{}); // that's all. No editor => admin interface
-  }
+  };
 
   // log out (if we're logged in) and delete the memory of the session in "a" to avoid the bug of reusing an expired session.
   my.logoutFromServer = function(a) {
@@ -591,20 +597,7 @@ var L$ = (function(my) {
         passOn(a);
       });
     }
-  }
-
-  // Find various files and folders within the one2edit server
-  function findTemplatelessWorkflow1(a) {
-    a.folderName = 'UploadedWorkflows';
-    a.type = 'workflow';
-    findFolderWithName(a);
-  }
-
-  function findTemplatelessWorkflow2(a) {
-    a.fileName = 'TemplatelessWorkflow';
-    a.type = 'workflow';
-    findFileInFolder(a);
-  }
+  };
 
   function findFolderWithName(a) {
     // type is 'workflow', 'template' or 'document'
@@ -650,37 +643,33 @@ var L$ = (function(my) {
   }
 
   // This routine starts a template job involving a master document and a workflow without ever needing a template.
-  // The disadvantage is that it cannot have any tags.
-  function startTemplatelessTemplateJobReally(a) {
-    console.log('startTemplatelessTemplateJobReally: a: ', a, '; xmlPassedIn:', a.$xml[0]);
-    a.workflowId = a.$file.children('id').text();
-    a.newDocumentName = a.$document.children('name').text() + ' Version Copy';
-    var ap = {
-      command: 'template.start',
-      documentName: a.newDocumentName,
+  // The idea is that this is a single-step edit-review-done operation.
+  // We can upload the zip package, create the document, and open the template job editor.
+  // After closing the editor, the callSequence will just complete everything automatically and the template job will vanish.
+  // we have to have found documentId and the UploadedWorkflows folder before reaching here.
+  // document.workflow.start starts teh workflow without creating a copy of the master document.
+
+  my.startTemplateless = function(a) {
+    var myData = {
+      command: 'document.workflow.start',
       documentId: a.documentId,
-      workflowId: a.workflowId
-    }
-    my.callServer(a, ap, function(a){
-      a.$job = a.$xml.find('jobs').find('status:contains("STARTED")').first().parent(); // first started job
-      a.jobId = a.$job.children('id').text();
+      workflowId: a.one2editSession.fileId['workflow']
+    };
+    my.callServer(a, myData, function(a){
+      findJobFromXml(a);
       passOn(a);
-    }, '.startTemplatelessTemplateJobReally');
-  }
-
-
-  my.startTemplatelessTemplateJob = function(a) {
-    var callSequence1 = [
-      {f:findTemplatelessWorkflow1, stage:'Finding workflow folder'},
-      {f:findTemplatelessWorkflow2, stage:'Finding templateless workflow'},
-      {f:startTemplatelessTemplateJobReally, stage:'Starting job'},
-      {f:my.editJob, stage:'Editing job'}
-    ];
-    a.callSequence = callSequence1; // NOTE destroys existing callSequence
-    my.startSequence(a);
+    });
   };
 
-  // data for a new template linking a master document and a workflow comes from a form in teh demo html page.
+  my.removeWorkflow = function(a) {
+    my.callServer(a, {
+      command: 'document.workflow.delete',
+      documentId: a.documentId
+    });
+  };
+
+
+  // data for a new template linking a master document and a workflow comes from a form in the demo html page.
   // At entry, a.template = {name, tags, description}
   // and a.documentId is the master document
   // and the workflow Id has already had to have been found.
@@ -697,12 +686,11 @@ var L$ = (function(my) {
       description: a.template.description,
       documentId: a.documentId, // the master document
       workflowData: workflowData
-      // workflowData: '<?xml version="1.0" encoding="utf-8"?><workflowData><workflow id="'+a.one2editSession.fileId['workflow']+'"></workflow></workflowData>'
     }, function(a) {
       // actually nothing to do
       passOn(a);
     });
-  }
+  };
 
   // list all the templates in teh UploadedTempaltes folder, complete wtih jpeg thumbnails.
   // you have to have located UploadedTemplates before coming here.
@@ -721,17 +709,29 @@ var L$ = (function(my) {
       });
       passOn(a);
     });
-  }
+  };
 
+  function findJobFromXml(a) {
+    // Terrible trouble trying to select the right job in jQuery
+    // which is why there is such a clunky filter mechanism below, and so many commented out logging statements.
+    // but it finally seems to work.
+    var $jobs = a.$xml.find('job');
+    $jobs.each(function(i,e) { console.log('findJobFromXml: job:', i,':',e ); });
+    var $jobStarted = $jobs.filter(function(){
+      var statusText = $(this).find('status').text();
+      var truth = (statusText == 'STARTED');
+      // console.log('filter: status:', statusText, truth);
+      return truth;
+    });
+    a.jobId = $jobStarted.children('id').text();
+    // console.log('startTemplate: jobId: ', a.jobId, '; jobStarted: ', $jobStarted[0]);
+  }
 
   // This starts a template job, meaning, executes the workflow for the template.
   // It creates a version copy of the master document and creates the job.
   // At entry, a.tempalteId is the template to be started. That defines everything else.
   // At exit, a.jobId is the job jsut started, and a.versionCopyDocumentId is the verison copy just created.
   my.startTemplate = function(a) {
-    // Terrible trouble trying to select the right job in jQuery
-    // which is why there is such a clunky filter mechanism below, and so many commented out logging statements.
-    // but it finally seems to work.
     console.log('startTemplate: trying to start template:', a.templateId);
     my.callServer(a,{
       command: 'template.start',
@@ -741,19 +741,10 @@ var L$ = (function(my) {
       // console.log('startTemplate: realSuccess: xml: ', a.$xml[0]);
       var $document = a.$xml.find('document'); // that is the version copy, not the master document
       a.versionCopyDocumentId = $document.children('id').text();
-      var $jobs = a.$xml.find('job');
-      $jobs.each(function(i,e) { console.log('startTemplate: job:', i,':',e ); });
-      var $jobStarted = $jobs.filter(function(){
-        var statusText = $(this).find('status').text();
-        var truth = (statusText == 'STARTED');
-        // console.log('filter: status:', statusText, truth);
-        return truth;
-      })
-      a.jobId = $jobStarted.children('id').text();
-      // console.log('startTemplate: jobId: ', a.jobId, '; jobStarted: ', $jobStarted[0]);
+      findJobFromXml(a);
       passOn(a);
     });
-  }
+  };
 
   // On ending job editing, Tariq wants all the fields set to read-to-review, and this rotuine does just that.
   my.setAllItemsToNeedsReview = function(a) {
@@ -762,8 +753,20 @@ var L$ = (function(my) {
       command: 'document.workflow.commit',
       documentId: a.versionCopyDocumentId,
       toStatus: 'NEEDSREVIEW'
-    }); // no realSuccess fucntion, automatic passOn used.
-  }
+    }); // no realSuccess function, automatic passOn used.
+  };
+
+  my.setAllItemsMasterToDone = function(a) {
+    console.log('setAllItemsMasterToDone: documentId: ', a.documentId);
+    my.callServer(a, {
+      command: 'document.workflow.commit',
+      documentId: a.documentId,
+      toStatus: 'DONE'
+    }); // no realSuccess, automatic passOn used.
+  };
+
+
+
 
   return my;
 }(L$ || { nameSpace: 'L$' }));
