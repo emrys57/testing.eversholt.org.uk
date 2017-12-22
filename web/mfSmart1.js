@@ -752,24 +752,31 @@ var L$ = (function(my) {
     });
   };
 
-  // On ending job editing, Tariq wants all the fields set to read-to-review, and this rotuine does just that.
-  my.setAllItemsToNeedsReview = function(a) {
-    console.log('setAllItemsToNeedsReview: versionCopyDocumentId: ', a.versionCopyDocumentId);
-    my.callServer(a, {
-      command: 'document.workflow.commit',
-      documentId: a.versionCopyDocumentId,
-      toStatus: 'NEEDSREVIEW'
-    }); // no realSuccess function, automatic passOn used.
+  // I originally thought it was a good idea to keep a separate record of the version copy document id
+  // but it seems I may have been mistaken.
+  my.makeVersionCopyMainDocument = function(a) {
+    a.documentId = a.versionCopyDocumentId;
+    passOn(a);
   };
 
-  my.setAllItemsMasterToDone = function(a) {
-    console.log('setAllItemsMasterToDone: documentId: ', a.documentId);
-    my.callServer(a, {
-      command: 'document.workflow.commit',
-      documentId: a.documentId,
-      toStatus: 'DONE'
-    }); // no realSuccess, automatic passOn used.
-  };
+  // // On ending job editing, Tariq wants all the fields set to read-to-review, and this rotuine does just that.
+  // my.setAllItemsToNeedsReview = function(a) {
+  //   console.log('setAllItemsToNeedsReview: versionCopyDocumentId: ', a.versionCopyDocumentId);
+  //   my.callServer(a, {
+  //     command: 'document.workflow.commit',
+  //     documentId: a.versionCopyDocumentId,
+  //     toStatus: 'NEEDSREVIEW'
+  //   }); // no realSuccess function, automatic passOn used.
+  // };
+  //
+  // my.setAllItemsMasterToDone = function(a) {
+  //   console.log('setAllItemsMasterToDone: documentId: ', a.documentId);
+  //   my.callServer(a, {
+  //     command: 'document.workflow.commit',
+  //     documentId: a.documentId,
+  //     toStatus: 'DONE'
+  //   }); // no realSuccess, automatic passOn used.
+  // };
 
   // Get info about a.documentId (which may be a master document or a version copy)
   // If this is a master document instead of a version copy

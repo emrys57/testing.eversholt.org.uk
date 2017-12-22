@@ -336,7 +336,8 @@
   }
 
   function submitListForm($form) {
-    L$.startSequence(aGeneric(listTemplatesCallSequence));
+    var a = aGeneric(listTemplatesCallSequence);
+    L$.startSequence(a);
     return false;
   }
 
@@ -464,7 +465,8 @@
       {f:L$.startTemplate, stage: 'Starting Template'},
       {f:L$.editJob, stage: 'Editing version copy'}, // will logout on completion
       {f:L$.startSession, stage: 'Logging In'},
-      {f:L$.setAllItemsToNeedsReview, stage: 'setting all items to "needs Review" status'},
+      {f:L$.makeVersionCopyMainDocument, stage: 'making version copy into main document'},
+      {f:L$.removeWorkflow, stage: 'Removing workflow from document'}, // removes from main document
       {f:L$.logoutFromServer, stage:'Logging out from server'}
     ];
 
@@ -475,8 +477,7 @@
       {f:L$.startTemplateless, stage: 'Starting Templateless Template Job'},
       {f:L$.editJob, stage: 'Editing master document'}, // will logout on completion
       {f:L$.startSession, stage: 'Logging In'},
-      {f:L$.removeWorkflow, stage: 'Removing workflow from document'},
-      // {f:L$.setAllItemsMasterToDone, stage: 'setting all items in master document to "Done" status'},
+      {f:L$.removeWorkflow, stage: 'Removing workflow from document'}, // removes from main document
       {f:L$.logoutFromServer, stage:'Logging out from server'}
     ];
 
@@ -496,8 +497,76 @@
       {f:L$.logoutFromServer, stage:'Logging out from server'}
     ];
 
+    // this sequence uploads a document, allows the user to edit it, and then downloads the pdf and installs it in the mediaferry proofing workflow.
+    callSequenceSmartCorrect1 = [
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.findAssetProjectId, stage: 'Finding Asset Project ID'},
+      {f:L$.uploadZipFileFromMediaFerry, stage:'Uploading zip file'}, // NOT YET WRITTEN
+      {f:L$.doUnzipAtServer, stage:'Unzipping file'},
+      {f:L$.doSearchForInddFile, stage:'Searching for InDesign file'},
+      {f:L$.findUploadedMastersFolderId, stage: 'Finding UploadedMasters folder'},
+      {f:L$.doCreateProject, stage:'Creating editable document from InDesign file'},
+      {f:L$.doAddContentGroup, stage:'Creating the Editable Content Group'},
+      {f:L$.doPopulateContentGroup, stage:'Moving content into the Editable Content Group'},
+      {f:L$.noteDocumentIdInMFJob, stage:'Noting one2edit documentId in MediaFerry job database'}, // NOT YET WRITTEN
+      {f:L$.findUploadedWorkflowsFolderId, stage: 'Find UploadedWorkflows folder'},
+      {f:L$.findTemplatelessWorkflow, stage: 'Finding templatelessWorkflow'},
+      {f:L$.startTemplateless, stage: 'Starting Templateless Template Job'},
+      {f:L$.editJob, stage: 'Editing master document'}, // will logout on completion
+      {f:L$.startSession, stage: 'Logging In'}, // because we jsut logged out
+      {f:L$.removeWorkflow, stage: 'Removing workflow from document'},
+      {f:L$.fetchPdfProof, stage: 'Fetching PDF Proof'}, // NOT YET WRITTEN in this form but we have all the pieces
+      {f:L$.setMediaFerryWorkflowToProofing, stage: 'Setting MediaFerry workflow to proofing'}, // NOT YET WRITTEN
+      {f:L$.logoutFromServer, stage:'Logging out from server'}
+    ];
+
+    // this sequence allwos teh user to edit a document already at one2edit, then downloads the pdf and installs it in the mediaferry proofing workflow.
+    callSequenceSmartCorrect2 = [
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.findUploadedWorkflowsFolderId, stage: 'Find UploadedWorkflows folder'},
+      {f:L$.findTemplatelessWorkflow, stage: 'Finding templatelessWorkflow'},
+      {f:L$.startTemplateless, stage: 'Starting Templateless Template Job'},
+      {f:L$.editJob, stage: 'Editing master document'}, // will logout on completion
+      {f:L$.startSession, stage: 'Logging In'}, // because we jsut logged out
+      {f:L$.removeWorkflow, stage: 'Removing workflow from document'},
+      {f:L$.fetchPdfProof, stage: 'Fetching PDF Proof'}, // NOT YET WRITTEN in this form but we have all the pieces
+      {f:L$.setMediaFerryWorkflowToProofing, stage: 'Setting MediaFerry workflow to proofing'}, // NOT YET WRITTEN
+      {f:L$.logoutFromServer, stage:'Logging out from server'}
+    ];
+
+    // this sequence moves a document at one2edit back to MediaFerry
+
+    callSequenceMoveToMF = [
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.checkDocumentHasNoVersionCopies, stage: 'Checking document can be deleted'},
+      {f:L$.storeZipPackageAtMF, stage: 'Storing File at MediaFerry Server'}, // NOT YET WRITTEN but we have all the pieces
+      {f:L$.findAssetFolderForDocument, stage: 'Finding asset folder'},
+      {f:L$.deleteDocument, stage: 'Deleting document'},
+      {f:L$.deleteAssetFolder, stage: 'Deleting asset folder'},
+      {f:L$.logoutFromServer, stage:'Logging out from server'}
+    ];
   });
 
+  // Edit a document at one2edit, uploading it from MediaFerry if needed, and download a proof.
+  // if provided, 'onCompletion(a)' will be called after everything is complete, allowing teh caller to regain control.
+  function smartCorrect(onCompletion) {
+    if (typeof onCompletion != 'function') { onCompletion = function(a){}; }
+    var a = aGeneric([]); // empty callSequence for now
+    a.documentId = one2editDocumentIdNotedInMediaFerryJob(); // TO BE PROVIDED. Find documentId, if any, stored in MF database for this job. 0 => there is no documentId noted.
+    var cs = (a.documentId == 0)?callSequenceSmartCorrect1:callSequenceSmartCorrect2;
+    a.callSequence = cs.slice().push(onCompletion);
+    L$.startSequence(a); // and that is all you have to do.
+  }
+
+
+  // Move a one2edit document to MediaFerry, deleting the one2edit files.
+  // if provided, 'onCompletion(a)' will be called after everything is complete, allowing teh caller to regain control.
+  function moveToMF(onCompletion) {
+    if (typeof onCompletion != 'function') { onCompletion = function(a){}; }
+    var a = aGeneric(callSequenceMoveToMF.slice().push(onCompletion));
+    a.documentId = one2editDocumentIdNotedInMediaFerryJob(); // TO BE PROVIDED. Find documentId, if any, stored in MF database for this job. 0 => there is no documentId noted.
+    L$.startSequence(a);
+  }
 
 </script>
 
