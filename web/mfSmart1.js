@@ -95,7 +95,7 @@ var L$ = (function(my) {
     }
   }
 
-  my.new21sessionUrl = ''; // must be set up by calling code.
+  my.adminUrl = ''; // must be set up by calling code.
   my.uploadedPackagesPathname = '/UploadedPackages'; // pathname in asset space
   my.uploadedTemplatesFoldername = 'UploadedTemplates';
   my.uploadedMastersFolderName = 'UploadedMasters';
@@ -104,8 +104,8 @@ var L$ = (function(my) {
 
   // Start a session with the one2edit server by logging in with username and password.
   // To make the system marginally more secure, no one2edit passwords are sent from MediaFerry to the user's browser here.
-  // Instead, the web service at the address defiend by the javascript variable "new21sessionUrl" is asked to do the logging in and provide a sessionId to be reused here.
-  // "new21sessionURL" has to be defined outside of this library code. I have provided the file "new21session.php" for this service.
+  // Instead, the web service at the address defined by the javascript variable "adminUrl" is asked to do the logging in and provide a sessionId to be reused here.
+  // "adminUrl" has to be defined outside of this library code. I have provided the file "mfAdmin.php" for this service.
 
   // one2edit sessions traditionally time out in a few minutes. To avoid timeouts, don't start the session until you're ready to go,
   // with no human action needed to complete the whole callSequence.
@@ -115,14 +115,14 @@ var L$ = (function(my) {
   // This can ask to log in as any one2edit user, by setting a.username at entry.
   // If no username is provided, a generic API Test username will be provided instead.
 
-  // SECURITY ISSUE: new21session.php has to check that the user here is a valid logged-in MediaFerry user
+  // SECURITY ISSUE: mfAdmin.php has to check that the user here is a valid logged-in MediaFerry user
   // with permission to use the one2edit server
   // before logging in and providing the sessionId.
   // THAT AUTHORISATION CODE HAS NOT YET BEEN WRITTEN. Someone needs to go and do that.
 
   my.startSession = function(a) {
     // Start a session with the one2edit server, by calling the MediaFerry server and asking it to tell you the sessionId.
-    var myData = {};
+    var myData = { command: 'getSession' };
     if (typeof a.username == 'string') { myData.username = a.username; }
     a.one2editSession = {}; // make sure it is empty
     my.callServer(a, {}, function(a) {
@@ -136,7 +136,7 @@ var L$ = (function(my) {
     },
     {
       // replacement parameters to override those created by callServer, because we're calling a differnet server.
-      url: my.new21sessionUrl,
+      url: my.adminUrl,
       data: myData
     });
   };
@@ -425,8 +425,8 @@ var L$ = (function(my) {
 
   // This library code here usually executes at the user's browser.
   // Sometimes we need to move files not from one2edit to the broser, but from one2edit to the MediaFerry server.
-  // This routine calls another PHP helper to do this, 'fetchfile.php', which needs to run at the MediaFerry server.
-  // SECURITY NOTE: fetchfile.php needs to check that the user is permitted to see the data and use the one2edit server.
+  // This routine calls another PHP helper to do this, 'mfAdmin.php', which needs to run at the MediaFerry server.
+  // SECURITY NOTE: mfAdmin.php needs to check that the user is permitted to see the data and use the one2edit server.
   // THAT CODE HAS NOT YET BEEN WRITTEN. Someone should write it.
   // You don't need to have logged in to one2edit to run this routine.
   // At entry, a.store = {fileType, documentId} defines the document to be downloaded.
@@ -439,6 +439,7 @@ var L$ = (function(my) {
     if (a.store.fileType == 'pdf') { extension = '.pdf'; }
     if (a.store.fileType == 'package') { extension = '.zip'; }
     var myData = {
+      command: 'downloadFile',
       fileType: a.store.fileType,
       documentId: a.store.documentId,
       filename: 'document'+a.store.documentId+extension
@@ -449,7 +450,7 @@ var L$ = (function(my) {
       passOn(a);
     }, {
       data: myData,
-      url:'fetchFile.php'
+      url:my.adminUrl
     });
   };
 
@@ -860,6 +861,15 @@ var L$ = (function(my) {
         identifier: a.uploadedPackagePathname
       }); // automatic passOn
     }
+  };
+
+  my.storeZipPackageAtMF = function(a) {
+    a.store = { fileType:'zip', documentId: a.documentId };
+    my.storeFileAtMediaFerryServer(a);
+  };
+  my.fetchPdfProof = function(a) {
+    a.store = { fileType:'pdf', documentId: a.documentId };
+    my.storeFileAtMediaFerryServer(a);
   };
 
   return my;

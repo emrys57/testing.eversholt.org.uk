@@ -15,9 +15,8 @@
 
   require('eDebug.php');
 
-  exportToJavascript('new21sessionUrl', 'new21session.php'); // the new21session.php web service will be in the same folder as the one this php came from.
   ?>
-  <script> L$.new21sessionUrl = new21sessionUrl; </script>
+  <script> L$.adminUrl = 'mfAdmin.php'; </script> // support program
 
   <style>
   .one2edit { /* This is the box that the one2edit Flash screen inhabits, if we use it */
@@ -104,8 +103,8 @@
         <input class='class1' type='submit' data-operation='editDocument' value='Edit Document' />
         <input class='class1' type='submit' data-operation='downloadPdf' value='Download PDF'/>
         <input class='class1' type='submit' data-operation='downloadPackage' value='Download InDesign Package zip file'/>
-        <input class='class1' type='submit' data-operation='storePdf' value='Store PDF at MediaFerry server'/>
-        <input class='class1' type='submit' data-operation='storePackage' value='Store InDesign Package zip file at Mediaferry Server'/>
+        <input class='class1' type='submit' data-operation='fetchPdf' value='Store PDF at MediaFerry server'/>
+        <input class='class1' type='submit' data-operation='fetchZipPackage' value='Store InDesign Package zip file at Mediaferry Server'/>
         <input class='class1' type='submit' data-operation='editTemplateless' value='Edit Templateless' />
         <input class='class1' type='submit' data-operation='findAssetInfo' value='Find Asset info' />
         <input class='class1' type='submit' data-operation='moveToMediaFerry' value='Move Document to MediaFerry' />
@@ -291,26 +290,16 @@
       'storePackage':storeCallSequence,
       'editTemplateless':startTemplatelessCallSequence,
       'findAssetInfo':assetInfoCallSequence,
-      'moveToMediaFerry':moveToMediaFerryCallSequence
+      'moveToMediaFerry':moveToMediaFerryCallSequence,
+      'fetchPdf':fetchPdfSequence,
+      'fetchZipPackage':fetchZipSequence
     };
     var callSequence = sequences[operation];
     if (typeof callSequence == 'undefined') { console.log('submitDocumentForm2: button: ', $button[0], '; operation: ', operation, 'UNRECOGNISED'); }
     var a = aGeneric(callSequence);
     a.documentId = $form.find('.documentId').val()
     switch (operation) {
-      case 'storePdf':
-      a.store = {
-        documentId: a.documentId,
-        fileType: 'pdf'
-      }
-      break;
-      case 'moveToMediaFerry':
-      case 'storePackage':
-      a.store = {
-        documentId: a.documentId,
-        fileType: 'package'
-      }
-      break;
+      // do any custom per-operation init here
       default:
       break;
     }
@@ -490,7 +479,7 @@
     moveToMediaFerryCallSequence = [
       {f:L$.startSession, stage: 'Logging In'},
       {f:L$.checkDocumentHasNoVersionCopies, stage: 'Checking document can be deleted'},
-      {f:L$.storeFileAtMediaFerryServer, stage: 'Storing File at MediaFerry Server'},
+      {f:L$.storeZipPackageAtMF, stage: 'Storing File at MediaFerry Server'},
       {f:L$.findAssetFolderForDocument, stage: 'Finding asset folder'},
       {f:L$.deleteDocument, stage: 'Deleting document'},
       {f:L$.deleteAssetFolder, stage: 'Deleting asset folder'},
@@ -508,14 +497,14 @@
       {f:L$.doCreateProject, stage:'Creating editable document from InDesign file'},
       {f:L$.doAddContentGroup, stage:'Creating the Editable Content Group'},
       {f:L$.doPopulateContentGroup, stage:'Moving content into the Editable Content Group'},
-      {f:L$.noteDocumentIdInMFJob, stage:'Noting one2edit documentId in MediaFerry job database'}, // NOT YET WRITTEN
+      {f:L$.noteDocumentIdInMFJob, stage:'Noting one2edit documentId in MediaFerry job database'}, // CODE INCOMPLETE IN mfAdmin.php
       {f:L$.findUploadedWorkflowsFolderId, stage: 'Find UploadedWorkflows folder'},
       {f:L$.findTemplatelessWorkflow, stage: 'Finding templatelessWorkflow'},
       {f:L$.startTemplateless, stage: 'Starting Templateless Template Job'},
       {f:L$.editJob, stage: 'Editing master document'}, // will logout on completion
-      {f:L$.startSession, stage: 'Logging In'}, // because we jsut logged out
+      {f:L$.startSession, stage: 'Logging In'}, // because we just logged out
       {f:L$.removeWorkflow, stage: 'Removing workflow from document'},
-      {f:L$.fetchPdfProof, stage: 'Fetching PDF Proof'}, // NOT YET WRITTEN in this form but we have all the pieces
+      {f:L$.fetchPdfProof, stage: 'Fetching PDF Proof'},
       {f:L$.setMediaFerryWorkflowToProofing, stage: 'Setting MediaFerry workflow to proofing'}, // NOT YET WRITTEN
       {f:L$.logoutFromServer, stage:'Logging out from server'}
     ];
@@ -527,9 +516,9 @@
       {f:L$.findTemplatelessWorkflow, stage: 'Finding templatelessWorkflow'},
       {f:L$.startTemplateless, stage: 'Starting Templateless Template Job'},
       {f:L$.editJob, stage: 'Editing master document'}, // will logout on completion
-      {f:L$.startSession, stage: 'Logging In'}, // because we jsut logged out
+      {f:L$.startSession, stage: 'Logging In'}, // because we just logged out
       {f:L$.removeWorkflow, stage: 'Removing workflow from document'},
-      {f:L$.fetchPdfProof, stage: 'Fetching PDF Proof'}, // NOT YET WRITTEN in this form but we have all the pieces
+      {f:L$.fetchPdfProof, stage: 'Fetching PDF Proof'},
       {f:L$.setMediaFerryWorkflowToProofing, stage: 'Setting MediaFerry workflow to proofing'}, // NOT YET WRITTEN
       {f:L$.logoutFromServer, stage:'Logging out from server'}
     ];
@@ -539,11 +528,18 @@
     callSequenceMoveToMF = [
       {f:L$.startSession, stage: 'Logging In'},
       {f:L$.checkDocumentHasNoVersionCopies, stage: 'Checking document can be deleted'},
-      {f:L$.storeZipPackageAtMF, stage: 'Storing File at MediaFerry Server'}, // NOT YET WRITTEN but we have all the pieces
+      {f:L$.storeZipPackageAtMF, stage: 'Storing File at MediaFerry Server'},
       {f:L$.findAssetFolderForDocument, stage: 'Finding asset folder'},
       {f:L$.deleteDocument, stage: 'Deleting document'},
       {f:L$.deleteAssetFolder, stage: 'Deleting asset folder'},
       {f:L$.logoutFromServer, stage:'Logging out from server'}
+    ];
+
+    fetchPdfSequence = [
+      {f:L$.fetchPdfProof, stage: 'Fetching PDF Proof'}
+    ];
+    fetchZipSequence = [
+      {f:L$.storeZipPackageAtMF, stage: 'Fetching ZIP Package'}
     ];
   });
 
