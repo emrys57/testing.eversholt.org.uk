@@ -94,6 +94,12 @@
       </form>
     </div>
     <div class='oneForm'>
+      <h3>Test UPloading from MediaFerry server to one2edit.</h3>
+      <form id='up2Form' onsubmit='return submitUp2Form($("#up2Form"));'>
+        <input type='submit' value='Upload from MF' />
+      </form>
+    </div>
+    <div class='oneForm'>
       <h3> Edit documents, download as PDF or as Zipped InDesign package.</h3>
       The document number is the one from the one2edit server. <br /><br />
       <!-- see below at submitDocumentForm2 for an explanation of how this works. -->
@@ -264,6 +270,11 @@
   function submitForm2() { // called when submit button is pressed on form
     var a = aGeneric(callSequence0);
     a.$form = $('#fileUploadForm');
+    L$.startSequence(a);
+    return false; // MUST return false or chaos ensues, browser reloads with POST.
+  }
+  function submitUp2Form() { // called when submit button is pressed on form
+    var a = aGeneric(moveFromMediaFerryCallSequence);
     L$.startSequence(a);
     return false; // MUST return false or chaos ensues, browser reloads with POST.
   }
@@ -484,6 +495,20 @@
       {f:L$.deleteDocument, stage: 'Deleting document'},
       {f:L$.deleteAssetFolder, stage: 'Deleting asset folder'},
       {f:L$.logoutFromServer, stage:'Logging out from server'}
+    ];
+
+    moveFromMediaFerryCallSequence = [
+      {f:L$.startSession, stage: 'Logging In'},
+      {f:L$.findAssetProjectId, stage: 'Finding Asset Project ID'},
+      {f:L$.uploadZipFileFromMediaFerry, stage:'Uploading zip file'},
+      {f:L$.doUnzipAtServer, stage:'Unzipping file'},
+      {f:L$.doSearchForInddFile, stage:'Searching for InDesign file'},
+      {f:L$.findUploadedMastersFolderId, stage: 'Finding UploadedMasters folder'},
+      {f:L$.doCreateProject, stage:'Creating editable document from InDesign file'},
+      {f:L$.doAddContentGroup, stage:'Creating the Editable Content Group'},
+      {f:L$.doPopulateContentGroup, stage:'Moving content into the Editable Content Group'},
+      {f:L$.logoutFromServer, stage:'Logging out from server'},
+      {f:setDocumentId, stage:'Setting Document ID'}
     ];
 
     // this sequence uploads a document, allows the user to edit it, and then downloads the pdf and installs it in the mediaferry proofing workflow.

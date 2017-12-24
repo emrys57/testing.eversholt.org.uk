@@ -872,5 +872,24 @@ var L$ = (function(my) {
     my.storeFileAtMediaFerryServer(a);
   };
 
+  // TODO: specify how the file to be uploaded is specified
+  // this just uploads a test file
+  // must already have found asset project ID
+  my.uploadZipFileFromMediaFerry = function(a) {
+    my.callServer(a, {}, function(a) {
+      a.zipFileIdentifier = a.$xml.find('identifier').text(); // a full pathname in the asset space
+      if ((typeof a.zipFileIdentifier == 'undefined') || (a.zipFileIdentifier == '')) { console.log('uploadZipFileFromMediaFerry: xml:', a.$xml[0]); }
+      else { passOn(a); }
+    }, {
+      url: my.adminUrl,
+      data: {
+        command: 'uploadAsset',
+        projectId: a.one2editSession.projectId,
+        folderIdentifier: my.uploadedPackagesPathname
+      }
+    });
+
+  };
+
   return my;
 }(L$ || { nameSpace: 'L$' }));

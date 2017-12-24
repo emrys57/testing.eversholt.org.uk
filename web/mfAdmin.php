@@ -99,17 +99,43 @@ switch($mfCommand) {
   }
   break;
 
+  case 'uploadAsset': {
+    $filePathAtMediaFerry = getP('filePathAtMediaFerry');
+    if ($filePathAtMediaFerry == '') { $filePathAtMediaFerry = 'DownloadedFiles/test.zip'; }
+    $projectId = getP('projectId'); // that's the asset project
+    $folderIdentifier = getP('folderIdentifier'); // pathname to upload folder
+    $pa = [
+      'command'=>'asset.upload',
+      'authDomain'=>'local',
+      'clientId'=>$t->one2editWorkspaceId,
+      'sessionId'=>$t->eSession->sessionId,
+      'projectId'=>$projectId,
+      'folderIdentifier'=>$folderIdentifier,
+      'data'=> new CurlFile($filePathAtMediaFerry) // php 5.5 onwards
+    ];
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_SAFE_UPLOAD, true); // php 5.5 onwards
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $pa);
+    curl_setopt($ch, CURLOPT_URL, $t->one2editServerApiUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 
-  default: {
-    dieWithError($t, 99994, 'Unknown command: '.$mfCommand);
+    $result = curl_exec($ch);
+
+    if ($result === FALSE) { dieWithErrror($t, 99993, 'curl returned FALSE: curl_error said: '. curl_error($ch)); }
+    curl_close($ch);
+    // Not sure if this will always work, but I am going to try returning the one2edit data as the xml output from this program.
+    $resultWithoutHeader = preg_replace('/^[^>]*>/', '', $result); // HAVE NO IDEA WHY I HAVE TO DO THIS but it works.
+    sendXmlString($resultWithoutHeader);
+    quitNicely($t);
   }
+  break;
+
+  default: { dieWithError($t, 99994, 'Unknown command: '.$mfCommand); }
   break;
 }
 
-function getP($p) {
-  if (isset($_POST[$p])) { return $_POST[$p]; }
-  return '';
-}
+function getP($p) { return isset($_POST[$p]) ? $_POST[$p] : ''; }
 
 function xmlHeader() { return '<?xml version="1.0" encoding="utf-8"?>'; } // does not seem to work
 
@@ -119,19 +145,22 @@ function buildXml($r) {
   foreach($r as $k=>$v) { $built .= '<'.$k.'>'.(is_array($v)?buildXml($v):(string)$v).'</'.$k.'>'; }
   return $built;
 }
-function respond($r) {
+function sendXmlString($s) {
   header("Content-type: text/xml; charset=utf-8");
-  echo buildXml($r);
+  echo($s);
 }
+function respond($r) { sendXmlString(buildXml($r)); }
 function replyGracefully($r) { respond(['success'=>$r]); }
+function quitNicely($t) {
+  if ($t !== FALSE) { $t->logout(); }
+  exit();
+}
 function expireGracefully($t,$r) {
   replyGracefully($r);
-  $t->logout();
-  exit();
+  quitNicely($t);
 }
 function dieWithError($t, $code, $message) {
   $r = ['error'=>['code'=>$code, 'message'=>$message]];
   respond($r);
-  if ($t !== FALSE) { $t->logout(); }
-  exit();
+  quitNicely($t);
 }
