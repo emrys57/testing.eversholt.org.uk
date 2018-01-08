@@ -100,6 +100,7 @@ var L$ = (function(my) {
   my.uploadedTemplatesFoldername = 'UploadedTemplates';
   my.uploadedMastersFolderName = 'UploadedMasters';
   my.uploadedWorkflowsFolderName = 'UploadedWorkflows';
+  my.uploadedContentRulesFolderName = 'UploadedContentRules';
 
 
   // Start a session with the one2edit server by logging in with username and password.
@@ -164,6 +165,11 @@ var L$ = (function(my) {
     a.folderName = my.uploadedWorkflowsFolderName;
     findFolderWithName(a);
   };
+  my.findUploadedContentRulesFolderId = function(a) {
+    a.type = 'content.rule';
+    a.folderName = my.uploadedContentRulesFolderName;
+    findFolderWithName(a);
+  };
   my.findTemplatedWorkflow = function(a) {
     a.type = 'workflow';
     a.fileName = 'templatedWorkflow';
@@ -172,6 +178,11 @@ var L$ = (function(my) {
   my.findTemplatelessWorkflow = function(a) {
     a.type = 'workflow';
     a.fileName = 'templatelessWorkflow';
+    findFileInFolder(a);
+  };
+  my.findImageContentRule = function(a) {
+    a.type = 'content.rule';
+    a.fileName = 'templatelessImageRule';
     findFileInFolder(a);
   };
 
@@ -365,12 +376,15 @@ var L$ = (function(my) {
     // if the group already exists (somehow) we get a code-4004 error, which we can ignore.
     // Except we don't yet, which is a mssing feature. Have to allow it in callServer.
     // 'a.$document' is the result of a call to 'doCreateProject'
+    // Also have to add the editable image rule, so we have to have called findUploadedContentRulesFolderId and findImageContentRule before now. 
     // console.log('doAddContentGroup: initially: document:', a.$document[0]);
     a.documentId = a.$document.children('id').text(); // there is a document.owner.id too; don't want that one.
+    var contentRuleFileId = a.one2editSession.fileId['content.rule'];
     my.callServer(a, {
       command: 'document.group.add',
       documentId: a.documentId,
-      name: 'Editable Content Group'
+      name: 'Editable Content Group',
+      contentRuleIds: contentRuleFileId
     }, function(a) {
       a.toGroupId = a.$xml.find('success').children('group').children('id').text();
       passOn(a);
@@ -607,7 +621,7 @@ var L$ = (function(my) {
   };
 
   function findFolderWithName(a) {
-    // type is 'workflow', 'template' or 'document'
+    // type is 'workflow', 'template' or 'document' or 'content.rule'
     delete a.$folder;
     my.callServer(a, {
       command: a.type+'.folder.list',
@@ -628,7 +642,7 @@ var L$ = (function(my) {
   }
 
   function findFileInFolder(a) {
-    // a.type is 'workflow', 'template' or 'document'
+    // a.type is 'workflow', 'template' or 'document' or 'content.rule'
     // folderId for the type has been previously set up
     var folderId = a.one2editSession.folderId[a.type];
     delete a.$file;

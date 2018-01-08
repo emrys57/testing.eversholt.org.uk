@@ -16,7 +16,8 @@
   require('eDebug.php');
 
   ?>
-  <script> L$.adminUrl = 'mfAdmin.php'; </script> // support program
+  <!-- This next is the php web service written to support these functions at the MediaFerry server. -->
+  <script> L$.adminUrl = 'mfAdmin.php'; </script>
 
   <style>
   .one2edit { /* This is the box that the one2edit Flash screen inhabits, if we use it */
@@ -408,6 +409,8 @@
       {f:L$.doSearchForInddFile, stage:'Searching for InDesign file'},
       {f:L$.findUploadedMastersFolderId, stage: 'Finding UploadedMasters folder'},
       {f:L$.doCreateProject, stage:'Creating editable document from InDesign file'},
+      {f:L$.findUploadedContentRulesFolderId, stage:'Finding UploadedContentRules folder'},
+      {f:L$.findImageContentRule, stage:'Finding templatelessImageRule'},
       {f:L$.doAddContentGroup, stage:'Creating the Editable Content Group'},
       {f:L$.doPopulateContentGroup, stage:'Moving content into the Editable Content Group'},
       {f:setDocumentId, stage:'Setting Document ID'}
@@ -505,6 +508,8 @@
       {f:L$.doSearchForInddFile, stage:'Searching for InDesign file'},
       {f:L$.findUploadedMastersFolderId, stage: 'Finding UploadedMasters folder'},
       {f:L$.doCreateProject, stage:'Creating editable document from InDesign file'},
+      {f:L$.findUploadedContentRulesFolderId, stage:'Finding UploadedContentRules folder'},
+      {f:L$.findImageContentRule, stage:'Finding templatelessImageRule'},
       {f:L$.doAddContentGroup, stage:'Creating the Editable Content Group'},
       {f:L$.doPopulateContentGroup, stage:'Moving content into the Editable Content Group'},
       {f:L$.logoutFromServer, stage:'Logging out from server'},
@@ -520,6 +525,8 @@
       {f:L$.doSearchForInddFile, stage:'Searching for InDesign file'},
       {f:L$.findUploadedMastersFolderId, stage: 'Finding UploadedMasters folder'},
       {f:L$.doCreateProject, stage:'Creating editable document from InDesign file'},
+      {f:L$.findUploadedContentRulesFolderId, stage:'Finding UploadedContentRules folder'},
+      {f:L$.findImageContentRule, stage:'Finding templatelessImageRule'},
       {f:L$.doAddContentGroup, stage:'Creating the Editable Content Group'},
       {f:L$.doPopulateContentGroup, stage:'Moving content into the Editable Content Group'},
       {f:L$.noteDocumentIdInMFJob, stage:'Noting one2edit documentId in MediaFerry job database'}, // CODE INCOMPLETE IN mfAdmin.php
