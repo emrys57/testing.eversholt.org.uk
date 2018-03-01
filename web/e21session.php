@@ -21,9 +21,10 @@ class One2editTalker {
 
   private $one2editAuthUsername; // the authUsername used to log in to one2edit
   public $eSession; // the instance of the Session object retaining the state of the user's session with this EKCS server
-  public $one2editServerBaseUrl = 'https://demo.one2edit.com';
+  public $one2editServerBaseUrl;
   public $one2editServerApiUrl;
   public $one2editWorkspaceId = FALSE;
+  public $clientIPAddress = ''; // the client allowed to use this session
 
   function __construct() { // bizarre php scheme for constructors with parameters - http://php.net/manual/en/language.oop5.decon.php
     $a = func_get_args();
@@ -34,10 +35,21 @@ class One2editTalker {
   }
 
   function __construct1($username) {
-    __construct2($username, FALSE);
+    $this->__construct2($username, FALSE);
+  }
+  function __construct2($username, $alwaysLogin) {
+    $this->__construct3($username, $alwaysLogin, 'https://demo.one2edit.com');
   }
 
-  function __construct2($username, $alwaysLogin) {
+
+  function __construct3($username, $alwaysLogin, $baseUrl) {
+    $this->__construct4($username, $alwaysLogin, $baseUrl, '');
+  }
+
+
+  function __construct4($username, $alwaysLogin, $baseUrl, $clientIPAddress) {
+    $this->clientIPAddress = $clientIPAddress;
+    $this->one2editServerBaseUrl = $baseUrl;
     // echo('construct1: trying $username.<br />');
     $this->one2editAuthUsername = e21Username($username);
     $this->one2editWorkspaceId = one2editWorkspaceId($this->one2editAuthUsername); // default workspace Id, may be changed later
@@ -85,6 +97,7 @@ class One2editTalker {
 
   private function login() { // try to log in to one2edit and get a sessionId back
     $data = ['command'=>'user.auth', 'username'=>$this->one2editAuthUsername, 'password'=>passwordFor($this->one2editAuthUsername), 'domain'=>one2editDomain($this->one2editAuthUsername)];
+    if ($this->clientIPAddress != '') { $data['userip'] = $this->clientIPAddress; } // allowed address to use session from
     $xml = $this->talk($data);
     $s = 'one2edit login failed';
     $login = $this->need($xml, 'login', $s);
@@ -113,10 +126,9 @@ class One2editTalker {
       if ($k == 'password') { $v = '*******'; }
       $s .= "$k:$v<br />";
     }
-    debug(2,$s);
-
+    debug(2,'curl data:'.$s);
+    
     $curl = curl_init();
-
     switch ($method) {
       case 'POST':
       curl_setopt($curl, CURLOPT_POST, 1);
@@ -144,9 +156,9 @@ class One2editTalker {
       if (isset($sxml->code) and isset($sxml->message)) {
         if (($sxml->code == $sessionNotStartedCode) || ($sxml->code == $attributesMissingCode) and ($mayRecurse)) {
           debug(2, 'one2edit server returned code 3005, session not started. Trying login.');
-          $this->login();
-          debug(2, 'retrying original command after login');
-          return $this->talk($data, $method, FALSE); // $data entries will be overwritten by new ones.
+          return $this->login();
+          // debug(2, 'retrying original command after login');
+          // return $this->talk($data, $method, FALSE); // $data entries will be overwritten by new ones.
         }
         debug(0, 'Server operation returned an error message. The server said:');
         debug(0, 'code: '.$sxml->code.'.<br />message: '.$sxml->message.'.<br />');
@@ -182,4 +194,4 @@ class One2editTalker {
     $this->talk($data);
   }
 }
-  ?>
+?>

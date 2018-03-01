@@ -96,7 +96,8 @@ var L$ = (function(my) {
   }
 
   my.adminUrl = ''; // must be set up by calling code.
-  my.uploadedPackagesPathname = '/UploadedPackages'; // pathname in asset space
+  my.uploadedPackagesPathname = '/UploadedPackages'; // pathname in asset space for demo.one2edit.com
+  my.uploadedPackagesFolderName = 'UploadedPackages'; // Folder name inside project in asset space for one2edit.mediaferry.com
   my.uploadedTemplatesFoldername = 'UploadedTemplates';
   my.uploadedMastersFolderName = 'UploadedMasters';
   my.uploadedWorkflowsFolderName = 'UploadedWorkflows';
@@ -133,10 +134,11 @@ var L$ = (function(my) {
         maybeProgress(a, 'loginFailed');
         return;
       }
+      a.one2editSession.usingAssetPaths = (a.one2editSession.baseUrl == 'https://demo.one2edit.com');
       passOn(a);
     },
     {
-      // replacement parameters to override those created by callServer, because we're calling a differnet server.
+      // replacement parameters to override those created by callServer, because we're calling a different server.
       url: my.adminUrl,
       data: myData
     });
@@ -192,9 +194,37 @@ var L$ = (function(my) {
     }, function(a){
       a.one2editSession.projectId = a.$xml.find('asset').first().children('project').text(); // the asset project
       if (typeof a.one2editSession.projectId == 'undefined') {
-        console.log('startSession: asset projectId not found.');
+        console.log('findAssetProjectId: asset projectId not found.');
         maybeProgress(a, 'assetProject'); // Note the full custom callback routine.
         // The calling code can provide generic handlers for the cusstom callbacks. Various errors here are reported through this means.
+        return;
+      }
+      if (a.one2editSession.usingAssetPaths) { // then we do not need to find the asset folder
+        passOn(a);
+      } else { // newer scheme, need to set the asset folderId
+        my.findUploadedPackagesFolderId(a); // that will do the passOn() later
+      }
+    });
+  };
+
+  my.findUploadedPackagesFolderId = function(a) {
+    // when we finally installed the one2edit.mediaferry.com server, it turned out to be a different API from
+    // the demo.one2edit.com server.
+    // Where demo.one2edit.com (rather oddly) used pathnames for the asset paths, one2edit.mediaferry.com uses folderIds, long hex strings.
+    // This function finds the folderId of the UploadedPackages folder in the selected project, which (at the moment) is
+    // the first project we come across.
+    // If we're on the old demo.one2edit.com server, a.one2editSession.usingAssetPaths will be true,
+    // in which case we should never reach this code.
+    my.callServer(a, {
+      command: 'asset.list',
+      projectId: a.one2editSession.projectId
+    }, function(a){
+      var selector = 'name:containsExact('+my.uploadedPackagesFolderName+')';
+      var $asset = a.$xml.find('asset').children(selector).parent();
+      a.one2editSession.uploadedPackagesFolderId = $asset.find('identifier').text();
+      if (typeof a.one2editSession.uploadedPackagesFolderId == 'undefined') {
+        console.log('findUploadedPackagesFolderId: asset folderId not found.');
+        maybeProgress(a, 'assetFolderId'); // Note the full custom callback routine.
         return;
       }
       passOn(a);
@@ -269,10 +299,13 @@ var L$ = (function(my) {
     fd.append('clientId', a.one2editSession.clientId);
     fd.append('command', 'asset.upload');
     fd.append('projectId', a.one2editSession.projectId);
-    fd.append('folderIdentifier', my.uploadedPackagesPathname);
+    if (a.one2editSession.usingAssetPaths) { fd.append('folderIdentifier', my.uploadedPackagesPathname); } // this code for demo.one2edit.com
+    else { fd.append('folderIdentifier', a.one2editSession.uploadedPackagesFolderId); } // this code for one2edit.mediaferry.com
     var realSuccess = function(a) {
       // console.log('submitForm: success: data:', a.$xml[0]);
       a.zipFileIdentifier = a.$xml.find('identifier').text(); // a full pathname in the asset space
+      // if this is the newer one2edit.mediaferry.com filesystem, then the identifier is not a full pathname, but a hex string
+      // but it is still called 'identifier'.
       passOn(a);
     };
     my.callServer(a, {}, realSuccess, { // extra info for the Ajax call here
@@ -284,7 +317,7 @@ var L$ = (function(my) {
 
   // ask one2edit to unzip the file just uploaded.
   // the zip file is at "a.zipFileIdentifier" at entry.
-  // We also need to have done L$.findAssetProjectId before coming ehre, to set a.one2editSession.projectId
+  // We also need to have done L$.findAssetProjectId before coming here, to set a.one2editSession.projectId
   // This routines output the full asset space pathname of the unzipped folder to "a.extractedFolderIdentifier".
   // DO remove the zipfiles as they are uploaded. Two zip files are not allowed to have the same name, and removing them after unzip mostly stops this.
   my.doUnzipAtServer = function(a) {
@@ -296,6 +329,8 @@ var L$ = (function(my) {
     }, function(a) {
       // console.log('doUnzipAtServer: success: xml:', a.$xml[0]);
       a.extractedFolderIdentifier = a.$xml.find('identifier').text(); // the complete file path, in the asset space, of the extracted folder
+      // if this is the newer one2edit.mediaferry.com filesystem, then this is not a pathname, but a long hex string
+      // but it is still called 'identifier'.
       passOn(a);
     });
   };
@@ -309,9 +344,10 @@ var L$ = (function(my) {
     searchForInddFile(a, a.extractedFolderIdentifier);
 
     function searchForInddFile(a, folderIdentifier) {
-      // 'folderIdentifier' is a complete file path in the asset space
-      // find the files and folders in that folder.
-      // this function can call itself recursively to go deeper into the asset folder tree.
+      // 'folderIdentifier' is a complete file path in the asset space (for the older demo.mediaferry.com filesystem)
+      // or is a long hex string folderId for the newer one2edit.mediaferry.com filesystem.
+      // Find the files and folders in that folder.
+      // This function can call itself recursively to go deeper into the asset folder tree.
       var callServerData = {
         command: 'asset.list',
         folderIdentifier: folderIdentifier,
@@ -333,7 +369,7 @@ var L$ = (function(my) {
         if (!foundInddFile) { // file is not in this folder, look in subfolders
           var $allFolders = a.$xml.find('asset').children('type:contains("folder")').parent();
           $allFolders.each(function(i,e) { // this function called for each subfolder
-            var newFolderIdentifier = $(e).find('identifier').text();
+            var newFolderIdentifier = $(e).find('identifier').text(); // pathname for demo.one2edit.com, folderId for one2edit.mediaferry.com
             searchForInddFile(a, newFolderIdentifier);
             if (foundInddFile) { return false; } // same as break
           });
@@ -343,7 +379,7 @@ var L$ = (function(my) {
   };
 
 
-  // one2edit "project documents" (or maybe just "projects") are different from the uplaoded InDesign packages.
+  // one2edit "project documents" (or maybe just "projects") are different from the uploaded InDesign packages.
   // This routine creates a project from an InDesign package.
   // It typically takes about 10s to run.
   // At entry, a.$asset has to be the xml defining the .indd file in the one2edit asset space.
@@ -353,6 +389,8 @@ var L$ = (function(my) {
     // transform the InDesign file in the asset space into an editable project in the one2edit document space.
     // a.$asset is the result of 'asset.list' and contains just the asset we want to convert.
     var assetIdentifier = a.$asset.find('identifier').text();
+    // That identifier is the pathname for the old demo.one2edit.com filesystem,
+    // or a long hex string for the newer one2edit.mediaferry.com filesystem.
     // console.log('doCreateProject: with asset:', assetIdentifier);
     my.callServer(a, {
       command: 'document.link',
@@ -376,7 +414,7 @@ var L$ = (function(my) {
     // if the group already exists (somehow) we get a code-4004 error, which we can ignore.
     // Except we don't yet, which is a mssing feature. Have to allow it in callServer.
     // 'a.$document' is the result of a call to 'doCreateProject'
-    // Also have to add the editable image rule, so we have to have called findUploadedContentRulesFolderId and findImageContentRule before now. 
+    // Also have to add the editable image rule, so we have to have called findUploadedContentRulesFolderId and findImageContentRule before now.
     // console.log('doAddContentGroup: initially: document:', a.$document[0]);
     a.documentId = a.$document.children('id').text(); // there is a document.owner.id too; don't want that one.
     var contentRuleFileId = a.one2editSession.fileId['content.rule'];
@@ -549,7 +587,7 @@ var L$ = (function(my) {
   // shared between the document editor, the job editor and the admin desktop.
   // log out on exit to avoid leaving a licence behind to time out.
   function openFlash(a, ap) { // open the Flash editor
-    console.log('openFlash: ap: ', ap);
+    console.log('openFlash: ap: ', JSON.stringify(ap, null, 4));
     maybeProgress(a, 'adjustDisplayForFlash');
     var ap0 = {
       options: {
@@ -564,7 +602,7 @@ var L$ = (function(my) {
       },
       parameters: { wmode: 'opaque' },
       flashvars: {
-        server: a.one2editSession.baseURL,
+        server: a.one2editSession.baseUrl,
         sessionId: a.one2editSession.sessionId, // A sessionId is returned when we authenticate a user (see API example)
         clientId: a.one2editSession.clientId, // Id of our Client Workspace
         idleTimeout: 900,
@@ -577,7 +615,7 @@ var L$ = (function(my) {
       }
     };
     var ap2 = $.extend(true, {}, ap0, ap); // deep copy
-    console.log('openFlash: ap2: ', ap2);
+    console.log('openFlash: ap2: ', JSON.stringify(ap2,null,4));
     one2edit.create(ap2);
   }
 
@@ -774,7 +812,7 @@ var L$ = (function(my) {
     passOn(a);
   };
 
-  // // On ending job editing, Tariq wants all the fields set to read-to-review, and this rotuine does just that.
+  // // On ending job editing, Tariq wants all the fields set to read-to-review, and this routine does just that.
   // my.setAllItemsToNeedsReview = function(a) {
   //   console.log('setAllItemsToNeedsReview: versionCopyDocumentId: ', a.versionCopyDocumentId);
   //   my.callServer(a, {
@@ -800,7 +838,8 @@ var L$ = (function(my) {
   // and the asset project number in a.uploadedProject
   // otherwise these will be empty strings.
   my.findAssetFolderForDocument = function(a) {
-    a.uploadedPackagePathname = '';
+    a.uploadedPackagePathname = ''; // used in older demo.one2edit.com filesystem
+    a.uploadedPackageFolderId = ''; // used in newer one2edit.mediaferry.com filesystem
     a.uploadedProject = '';
     my.callServer(a, {
       command: 'document.info',
@@ -811,26 +850,53 @@ var L$ = (function(my) {
       if (!isVersion) {
         var $asset = $document.children('asset');
         var assetPathName = $asset.children('identifier').text(); // gives full path name to indd file
+        // in the newer one2edit.mediaferry.com filesystem, assetPathName will instead be a long hex string, not a pathname
         var assetProject = $asset.children('project').text();
-        if (assetPathName.startsWith(my.uploadedPackagesPathname)) {
-          var packageRoot = assetPathName.replace(/^(\/[^/]+\/[^/]+).*/, '$1');
-          console.log('findAssetFolderForDocument: ', a.documentId, '; folder: ', packageRoot);
-          // Check here. Don't want to return anything (in case of a bug) that might delete the entire asset space!
-          if ((!packageRoot.startsWith(my.uploadedPackagesPathname))
-          || (my.uploadedPackagesPathname.length < 5)
-          || (packageRoot.trim().length < (my.uploadedPackagesPathname.length + 2))) {
-            console.log('findAssetFolderForDocument: FAILED CHECKS: Setting package to empty. was:', assetPathName);
-            packageRoot = '';
-            assetProject = '';
+        if (a.one2editSession.usingAssetPaths) { // then it is the older demo.one2edit.com filesystem
+          if (assetPathName.startsWith(my.uploadedPackagesPathname)) {
+            var packageRoot = assetPathName.replace(/^(\/[^/]+\/[^/]+).*/, '$1');
+            console.log('findAssetFolderForDocument: ', a.documentId, '; folder: ', packageRoot);
+            // Check here. Don't want to return anything (in case of a bug) that might delete the entire asset space!
+            if ((!packageRoot.startsWith(my.uploadedPackagesPathname))
+            || (my.uploadedPackagesPathname.length < 5)
+            || (packageRoot.trim().length < (my.uploadedPackagesPathname.length + 2))) {
+              console.log('findAssetFolderForDocument: FAILED CHECKS: Setting package to empty. was:', assetPathName);
+              packageRoot = '';
+              assetProject = '';
+            }
+            a.uploadedPackagePathname = packageRoot;
+            a.uploadedProject = assetProject;
           }
-          a.uploadedPackagePathname = packageRoot;
+        } else { // it is the newer one2edit.mediaferry.com filesystem
           a.uploadedProject = assetProject;
+          a.uploadedInddFileIdentifier = assetPathName;
+          // assetPathName is a long hex string. It's the file Id for the .indd file in the uploaded asset package.
+          // I need the folderId of the folder that contains that fileId.
+          // I have to do asset.info and specifically ask for the parent on that asset.
+          my.callServer(a, {
+            command: 'asset.info',
+            id: a.uploadedInddFileIdentifier,
+            include: 'parent'
+          }, function(a) {
+            var $asset = a.$xml.find('parent').find('asset');
+            var folderName = $asset.find('name').text();
+            var folderId = $asset.find('identifier').text();
+            console.log('findAssetFolderForDocument: document: ', a.documentId, 'inddFile:', a.uploadedInddFileIdentifier, 'asset folder:', folderName+':'+folderId);
+            if (folderName == 'UploadedPackages') {
+              console.log('findAssetFolderForDocument: FAILED CHECKS 2, found UploadedPackages folder');
+              return;
+            } else {
+              a.uploadedPackageFolderId = folderId;
+              passOn(a);
+            }
+          });
         }
       }
-      console.log('findAssetFolderForDocument: ', a.documentId, '; folder: ', a.uploadedPackagePathname, '; project: ', a.uploadedProject, '; isVersion: ', isVersion);
+      console.log('findAssetFolderForDocument: ', a.documentId, '; folder: ', a.uploadedPackagePathname+':'+a.uploadedPackageFolderId, '; project: ', a.uploadedProject, '; isVersion: ', isVersion);
       passOn(a);
     });
   };
+
 
   // this is quite important, because the API will allow you to delete a template master document, and then give you errors
   // when you try to edit the version copies. But it is hard to find out if a document has versions.
@@ -864,15 +930,28 @@ var L$ = (function(my) {
 
   // delete the asset folder (and anything in it) specified by a.uploadedPackagePathname and a.uploadedProject
   my.deleteAssetFolder = function(a) {
-    if ((typeof a.uploadedPackagePathname != 'string') || (a.uploadedPackagePathname == '')) {
-      console.log('deleteAssetFolder: No pathname, not deleting.');
+    var identifier = (a.one2editSession.usingAssetPaths)? a.uploadedPackagePathname : a.uploadedPackageFolderId;
+    console.log('deleteAssetFolder: usingAssetPaths:', a.one2editSession.usingAssetPaths, 'projectId:', a.uploadedProject, 'identifier:', identifier);
+    var deleting = true;
+    if (a.one2editSession.usingAssetPaths) { // older demo.one2edit.com filesystem
+      if ((typeof a.uploadedPackagePathname != 'string') || (a.uploadedPackagePathname == '')) {
+        console.log('deleteAssetFolder: No pathname, not deleting.');
+        deleting = false;
+      }
+    } else { // newer one2edit.mediaferry.com filesystem
+      if ((typeof a.uploadedPackageFolderId != 'string') || (a.uploadedPackageFolderId == '')) {
+        console.log('deleteAssetFolder: No folderId, not deleting.');
+        deleting = false;
+      }
+    }
+    if (!deleting) {
       maybeProgress(a, 'notDeletingAsset');
       passOn(a);
     } else {
       my.callServer(a, {
         command: 'asset.delete',
         projectId: a.uploadedProject,
-        identifier: a.uploadedPackagePathname
+        identifier: identifier
       }); // automatic passOn
     }
   };

@@ -232,6 +232,9 @@
     assetProject: function(a, event) {
       $('#progressText').append('Cannot find asset project ID. <br />');
     },
+    assetFolderId: function(a, event) {
+      $('#progressText').append('Cannot find asset folderId for folder '+L$.uploadedPackagesFolderName+'in asset project '+a.one2editSession.projectId+'. <br />');
+    },
     sequenceDone:function(a,event) {
       $('#progressText').append('All finished OK.<br />');
     },

@@ -25,7 +25,7 @@
   // NOTE that above code must be run before anything else is sent to the browser. Should it be above <html>?
 
   exportToJavascript('session', $t->eSession->sessionId);
-  exportToJavascript('baseURL', $t->one2editServerBaseUrl);
+  exportToJavascript('baseUrl', $t->one2editServerBaseUrl);
   exportToJavascript('workspaceId', $t->one2editWorkspaceId);
   ?>
 
@@ -59,30 +59,31 @@
       options: {
         onEditorInitialize: function() {
           // cannot run this until editor is running
-          one2edit.editor.closeBehavior(one2edit.editor.CLOSE_BEHAVIOR_LOGOUT); // that means logout on close. Note US spelling :-(
-          },
-          onLogout: function() {
-            // close window on logout
-            $(".one2edit").slideUp();
-          }
+          one2edit.editor.closeBehavior(one2edit.editor.CLOSE_BEHAVIOR_LOGOUT); // that means logout on close. Note US spelling
         },
-        parameters: {
-          wmode: 'opaque'
-        },
-        flashvars: {
-          server: baseURL,
-          sessionId: session,        // A sessionId is returned when we authenticate a user (see API example)
-          clientId: workspaceId,                    // Id of our Client Workspace
-          idleTimeout: 900,
-          // jobEditor: {
-          //   jobId: jobId               // A jobId is returned when we start a job template (see API example)
-          // }
+        onLogout: function() {
+          // close window on logout
+          $(".one2edit").slideUp();
         }
+      },
+      parameters: {
+        wmode: 'opaque'
+      },
+      flashvars: {
+        server: baseUrl,
+        sessionId: session,        // A sessionId is returned when we authenticate a user (see API example)
+        clientId: workspaceId,                    // Id of our Client Workspace
+        idleTimeout: 900,
+        // jobEditor: {
+        //   jobId: jobId               // A jobId is returned when we start a job template (see API example)
+        // }
       }
-      console.log('ap: '+JSON.stringify(ap,null,4)); // just do it like this for debug output. Does not show functions.
-      one2edit.create(ap);
-
-    });
-    </script>
+    }
+    console.log('ap: '+JSON.stringify(ap,null,4)); // just do it like this for debug output. Does not show functions.
+    console.log('session:', session);
+    console.log('baseUrl:', baseUrl);
+    one2edit.create(ap); // enable this line to run teh editor
+  });
+  </script>
 </body>
 </html>
