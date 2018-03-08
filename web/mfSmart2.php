@@ -147,6 +147,12 @@
       <div id='listTemplatesHere'>
       </div>
     </div>
+    <div class='oneForm'>
+      <h3>Kill all existing one2edit sessions.</h3>
+      <form id='killSessions' onsubmit='return killSessions();'>
+        <input type='submit' value='Kill Sessions' />
+      </form>
+    </div>
     <div id='progressText'>
     </div>
   </div>
@@ -342,6 +348,12 @@
 
   function submitListForm($form) {
     var a = aGeneric(listTemplatesCallSequence);
+    L$.startSequence(a);
+    return false;
+  }
+
+  function killSessions() {
+    var a = aGeneric(killSessionsCallSequence);
     L$.startSequence(a);
     return false;
   }
@@ -577,6 +589,13 @@
     fetchZipSequence = [
       {f:L$.storeZipPackageAtMF, stage: 'Fetching ZIP Package'}
     ];
+
+    killSessionsCallSequence = [
+      {f:L$.startSession, stage: ' Logging In'},
+      {f:L$.listAllSessions, stage: 'Listing All Sessions'},
+      {f:L$.deleteSession, stage: 'Deleting sessions'},
+      {f:L$.logoutFromServer, stage: 'Logging out'}
+    ]
   });
 
   // Edit a document at one2edit, uploading it from MediaFerry if needed, and download a proof.

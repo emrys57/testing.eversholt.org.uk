@@ -127,7 +127,7 @@ class One2editTalker {
       $s .= "$k:$v<br />";
     }
     debug(2,'curl data:'.$s);
-    
+
     $curl = curl_init();
     switch ($method) {
       case 'POST':
@@ -158,8 +158,9 @@ class One2editTalker {
           debug(2, 'one2edit server returned code 3005, session not started. Trying login.');
           return $this->login();
           // debug(2, 'retrying original command after login');
-          // return $this->talk($data, $method, FALSE); // $data entries will be overwritten by new ones.
+          return $this->talk($data, $method, FALSE); // $data entries will be overwritten by new ones.
         }
+        debugLater('e21session: code:'.$sxml->code.' message:'.$sxml->message.' data:'.$sxml->data);
         debug(0, 'Server operation returned an error message. The server said:');
         debug(0, 'code: '.$sxml->code.'.<br />message: '.$sxml->message.'.<br />');
         return FALSE;

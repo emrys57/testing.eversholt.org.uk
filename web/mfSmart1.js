@@ -62,6 +62,7 @@ var L$ = (function(my) {
   function passOn(a) {
     maybeProgress(a, 'onDone');
     a.sequenceIndex += 1;
+    a.continueOnError = false; // reset this every call, set it again if you want.
     // console.log('passOn: sequenceIndex: ', a.sequenceIndex, 'callSequence: ', a.callSequence);
     // pass on the object `a` to the next function in the sequence, if such a function exists
     if ($.isArray(a.callSequence) && (typeof a.sequenceIndex != 'undefined') && (typeof a.callSequence[a.sequenceIndex] != 'undefined') && (typeof a.callSequence[a.sequenceIndex].f == 'function')) {
@@ -264,7 +265,9 @@ var L$ = (function(my) {
           var message = a.$xml.find('message').text();
           console.log('callServer: server returned error: code: ', code, '; message: ', message);
           maybeProgress(a, 'onError');
-          return;
+          if (!a.continueOnError) {
+            return;
+          }
         }
         // cannot find a way to check that returend data is somehow sensible xml
         maybeProgress(a, 'onSuccess');
@@ -981,7 +984,59 @@ var L$ = (function(my) {
         folderIdentifier: my.uploadedPackagesPathname
       }
     });
+  };
 
+  my.listAllSessions = function(a) {
+    my.callServer(a,{
+      command: 'user.session.list'
+    }, function(a){
+      a.$sessions = a.$xml.find('session');
+      console.log('found '+a.$sessions.length+' sessions');
+      a.sessionIndexToDelete = 0;
+      passOn(a);
+    });
+  };
+
+  my.deleteSession = function(a) {
+    // delete first session from a.$sessions
+    // if it is not the currently logged in session here, ask one2edit to delete the session
+    // keep going even if there are errors
+    // report what happens
+    var $session = a.$sessions.eq(a.sessionIndexToDelete);
+    a.sessionIndexToDelete += 1;
+    var firstSessionId = $session.find('sessionId').text();
+    if (firstSessionId == '') {
+      console.log('firstSessionId is empty, quitting');
+      passOn(a);
+    }
+    if (firstSessionId != a.one2editSession.sessionId) {
+      // ask one2edit to kill the session
+      a.continueOnError = true;
+      my.callServer(a,{
+        command: 'user.session.quit',
+        sessionId: firstSessionId
+      }, function(a) {
+        var code = a.$xml.find('code').text();
+        console.log('killing session:', firstSessionId,' server code:', code, 'data:', a.$xml.find('data').text());
+        var sessionsLeft = a.$sessions.length - a.sessionIndexToDelete;
+        console.log('still have ', sessionsLeft, 'sessions');
+        if (sessionsLeft > 0) {
+          my.deleteSession(a);
+        } else {
+          passOn(a);
+        }
+      });
+    } else {
+      console.log('not deleting session', firstSessionId);
+      a.$sessions.first().remove();
+      var sessionsLeft = a.$sessions.length;
+      console.log('still have ', sessionsLeft, 'sessions');
+      if (sessionsLeft > 0) {
+        my.deleteSession(a);
+      } else {
+        passOn(a);
+      }
+    }
   };
 
   return my;

@@ -27,4 +27,18 @@ function exportToJavascript($javascriptVariablename, $value, $exportAsString=FAL
   echo("<script> var  $javascriptVariablename = $quote$value$quote; </script>");
 }
 
+$debugLaterStore = [];
+function debugLater($s) {
+  global $debugLaterStore;
+  array_push($debugLaterStore,$s);
+}
+function debugNow() {
+  global $debugLaterStore;
+  echo('<debugLater>');
+  foreach ($debugLaterStore as $line) {
+    echo($line."\n");
+  }
+  echo('</debugLater>');
+}
+
  ?>

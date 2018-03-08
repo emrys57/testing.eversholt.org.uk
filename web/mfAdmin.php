@@ -35,10 +35,11 @@ if ($baseUrl == '') { $baseUrl = 'https://one2edit.mediaferry.com'; }
   $clientIPAddress .= ','.$ip;
   // echo('client IP Address is:'.$clientIPAddress.':');
   curl_close ($ch);
+  debugLater('mfAdmin: $clientIPAddress:'.$clientIPAddress);
 
   // END IP ADDRESS TEST CODE
   $t = new One2editTalker($username, TRUE, $baseUrl, $clientIPAddress); // does one2edit login always, to create separate session here.
-
+  debugLater("mfAdmin: baseUrl:$baseUrl");
   if ($t === false) { // cannot log in to one2edit
     dieWithError($t, 99997, 'Cannot log in to one2edit as '.$username);
   }
@@ -80,14 +81,18 @@ if ($baseUrl == '') { $baseUrl = 'https://one2edit.mediaferry.com'; }
       if (($filename == '') || (strpos($filename, '/') !== FALSE)) { $filename = date('YmdHis').$extension; }
       $filePath = $folder.'/'.$filename;
 
+      $documentId = getP('documentId');
+      $clientId = $t->one2editWorkspaceId;
+      $sessionId = $t->eSession->sessionId;
+      $apiUrl = $t->one2editServerApiUrl;
       // from https://support.one2edit.com/Api/ example on pdf download
       // Generate URL-encoded query string
       $query = http_build_query([
         'command'=>$command,
         'authDomain'=>'local',
-        'clientId'=>$t->one2editWorkspaceId,
-        'sessionId'=>$t->eSession->sessionId,
-        'id'=>$_POST['documentId']
+        'clientId'=>$clientId,
+        'sessionId'=>$sessionId,
+        'id'=>$documentId
       ]);
 
       // Build options array
@@ -96,14 +101,17 @@ if ($baseUrl == '') { $baseUrl = 'https://one2edit.mediaferry.com'; }
         'header' => 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
         'content' => $query )
       );
-
+      debugLater("mfAdmin: downloadfile: query:$command $clientId $sessionId $documentId $apiUrl");
       // Create a stream context
       $context = stream_context_create($opts);
-
+// echo('one2editServerApiUrl:'.$t->one2editServerApiUrl.' sessionId:'.$t->eSession->sessionId );
       // Open stream and get the pdf preview as binary string from API
-      $binaryFile = file_get_contents($t->one2editServerApiUrl,false,$context);
+      $binaryFile = file_get_contents($apiUrl,false,$context);
 
-      if ($binaryFile === FALSE) { dieWithError($t, 99995, 'Cannot download file'); }
+      if ($binaryFile === FALSE) {
+        debugLater('mfAdmin: binaryFile is false');
+        dieWithError($t, 99995, 'Cannot download file');
+      }
       file_put_contents($filePath, $binaryFile);
       expireGracefully($t, ['filePath'=>$filePath]);
     }
@@ -170,7 +178,11 @@ if ($baseUrl == '') { $baseUrl = 'https://one2edit.mediaferry.com'; }
   function respond($r) { sendXmlString(buildXml($r)); }
   function replyGracefully($r) { respond(['success'=>$r]); }
   function quitNicely($t) {
-    if ($t !== FALSE) { $t->logout(); }
+    if ($t !== FALSE) {
+      debugLater('quitNicely: trying to log out');
+      $t->logout();
+    }
+    debugNow();
     exit();
   }
   function expireGracefully($t,$r) {
