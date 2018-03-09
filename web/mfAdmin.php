@@ -17,28 +17,14 @@
 require('e21session.php');
 $username = getP('username');
 $baseUrl = getP('baseUrl');
-$clientIPAddress = $_SERVER['REMOTE_ADDR'].','.'94.126.40.41'; // $_SERVER['SERVER_ADDR']; // cannot get correct server address
+// $clientIPAddress = $_SERVER['REMOTE_ADDR'].','.'94.126.40.41'; // $_SERVER['SERVER_ADDR']; // cannot get correct server address
 // if ($username == '') { $username = "one2editApiTest@team.expresskcs.com"; }
 // if ($baseUrl == '') { $baseUrl = 'https://demo.one2edit.com'; }
 //
 if ($username == '') { $username = "one2edit.production@expresskcs.com"; }
 if ($baseUrl == '') { $baseUrl = 'https://one2edit.mediaferry.com'; }
 
-
-  // IP ADDRESS TEST CODE
-  $ch = curl_init ();
-  curl_setopt ($ch, CURLOPT_URL, "http://ipecho.net/plain"); // service that returns our IP Address
-  curl_setopt ($ch, CURLOPT_HEADER, 0);
-  curl_setopt ($ch, CURLOPT_RETURNTRANSFER, true);
-  $ip = curl_exec ($ch);
-  // echo "The public ip for this server is: $ip";
-  $clientIPAddress .= ','.$ip;
-  // echo('client IP Address is:'.$clientIPAddress.':');
-  curl_close ($ch);
-  debugLater('mfAdmin: $clientIPAddress:'.$clientIPAddress);
-
-  // END IP ADDRESS TEST CODE
-  $t = new One2editTalker($username, TRUE, $baseUrl, $clientIPAddress); // does one2edit login always, to create separate session here.
+  $t = new One2editTalker($username, TRUE, $baseUrl); // does one2edit login always, to create separate session here.
   debugLater("mfAdmin: baseUrl:$baseUrl");
   if ($t === false) { // cannot log in to one2edit
     dieWithError($t, 99997, 'Cannot log in to one2edit as '.$username);
@@ -182,7 +168,7 @@ if ($baseUrl == '') { $baseUrl = 'https://one2edit.mediaferry.com'; }
       debugLater('quitNicely: trying to log out');
       $t->logout();
     }
-    debugNow();
+    // debugNow(); // turning this on sends the debug info but also destroys the xml, so you get xml errors
     exit();
   }
   function expireGracefully($t,$r) {
