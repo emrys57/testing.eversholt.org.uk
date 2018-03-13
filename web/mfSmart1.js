@@ -972,6 +972,10 @@ var L$ = (function(my) {
   // this just uploads a test file
   // must already have found asset project ID
   my.uploadZipFileFromMediaFerry = function(a) {
+    var assetFolderIdentifier;
+    // the uploadedPackagesFolderId will already have been found in findAssetProjectId, if using the new filesystem
+    if (a.one2editSession.usingAssetPaths) { assetFolderIdentifier = my.uploadedPackagesPathname; } // this code for demo.one2edit.com
+    else { assetFolderIdentifier = a.one2editSession.uploadedPackagesFolderId; } // this code for one2edit.mediaferry.com
     my.callServer(a, {}, function(a) {
       a.zipFileIdentifier = a.$xml.find('identifier').text(); // a full pathname in the asset space
       if ((typeof a.zipFileIdentifier == 'undefined') || (a.zipFileIdentifier == '')) { console.log('uploadZipFileFromMediaFerry: xml:', a.$xml[0]); }
@@ -981,7 +985,7 @@ var L$ = (function(my) {
       data: {
         command: 'uploadAsset',
         projectId: a.one2editSession.projectId,
-        folderIdentifier: my.uploadedPackagesPathname
+        folderIdentifier: assetFolderIdentifier
       }
     });
   };
