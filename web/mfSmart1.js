@@ -850,6 +850,7 @@ var L$ = (function(my) {
     }, function(a){
       var $document = a.$xml.find('document');
       var isVersion = ($document.children('isVersion').text() == 'true');
+      console.log('findAssetFolderForDocument: isVersion:', isVersion, 'text:', $document.children('isVersion').text());
       if (!isVersion) {
         var $asset = $document.children('asset');
         var assetPathName = $asset.children('identifier').text(); // gives full path name to indd file
@@ -878,7 +879,8 @@ var L$ = (function(my) {
           // I have to do asset.info and specifically ask for the parent on that asset.
           my.callServer(a, {
             command: 'asset.info',
-            id: a.uploadedInddFileIdentifier,
+            identifier: a.uploadedInddFileIdentifier,
+            projectId: a.uploadedProject,
             include: 'parent'
           }, function(a) {
             var $asset = a.$xml.find('parent').find('asset');
