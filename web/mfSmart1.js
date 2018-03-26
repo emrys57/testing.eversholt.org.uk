@@ -724,6 +724,7 @@ var L$ = (function(my) {
   };
 
   my.removeWorkflow = function(a) {
+    a.continueOnError = true; // keep going even if asked to delete a workflow and none exists.
     my.callServer(a, {
       command: 'document.workflow.delete',
       documentId: a.documentId

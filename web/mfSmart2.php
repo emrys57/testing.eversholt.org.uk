@@ -493,6 +493,7 @@
       {f:L$.startSession, stage: 'Logging In'},
       {f:L$.findUploadedWorkflowsFolderId, stage: 'Find UploadedWorkflows folder'},
       {f:L$.findTemplatelessWorkflow, stage: 'Finding templatelessWorkflow'},
+      {f:L$.removeWorkflow, stage: 'Removing possible workflow from document, ignoring error if no workflow exists'}, // removes any existing workflow, ignoring any error
       {f:L$.startTemplateless, stage: 'Starting Templateless Template Job'},
       {f:L$.editJob, stage: 'Editing master document'}, // will logout on completion
       {f:L$.startSession, stage: 'Logging In'},
@@ -548,7 +549,7 @@
       {f:L$.noteDocumentIdInMFJob, stage:'Noting one2edit documentId in MediaFerry job database'}, // CODE INCOMPLETE IN mfAdmin.php
       {f:L$.findUploadedWorkflowsFolderId, stage: 'Find UploadedWorkflows folder'},
       {f:L$.findTemplatelessWorkflow, stage: 'Finding templatelessWorkflow'},
-      {f:L$.startTemplateless, stage: 'Starting Templateless Template Job'},
+      {f:L$.startTemplateless, stage: 'Starting Templateless Template Job'}, // have just uploaded document, it cannot have an existing workflow
       {f:L$.editJob, stage: 'Editing master document'}, // will logout on completion
       {f:L$.startSession, stage: 'Logging In'}, // because we just logged out
       {f:L$.removeWorkflow, stage: 'Removing workflow from document'},
@@ -562,6 +563,8 @@
       {f:L$.startSession, stage: 'Logging In'},
       {f:L$.findUploadedWorkflowsFolderId, stage: 'Find UploadedWorkflows folder'},
       {f:L$.findTemplatelessWorkflow, stage: 'Finding templatelessWorkflow'},
+      {f:L$.removeWorkflow, stage: 'Removing possible workflow from document, ignoring error if no workflow exists'}, // removes any existing workflow, ignoring any error
+      // If the previous smartCorrect session timed out and logged out without saving, the workflow can still be there.
       {f:L$.startTemplateless, stage: 'Starting Templateless Template Job'},
       {f:L$.editJob, stage: 'Editing master document'}, // will logout on completion
       {f:L$.startSession, stage: 'Logging In'}, // because we just logged out
