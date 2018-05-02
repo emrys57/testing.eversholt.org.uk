@@ -719,6 +719,13 @@ var L$ = (function(my) {
     };
     my.callServer(a, myData, function(a){
       findJobFromXml(a);
+      if (a.jobId == '') {
+        // FAILED to find jobId of started job
+        maybeProgress(a, 'onError');
+        if (!a.continueOnError) {
+          return;
+        }
+      }
       passOn(a);
     });
   };
@@ -779,7 +786,10 @@ var L$ = (function(my) {
     // which is why there is such a clunky filter mechanism below, and so many commented out logging statements.
     // but it finally seems to work.
     var $jobs = a.$xml.find('job');
-    $jobs.each(function(i,e) { console.log('findJobFromXml: job:', i,':',e ); });
+    $jobs.each(function(i,e) {
+      console.log('findJobFromXml: job:', i,' $job:',e );
+      console.log('job:',i, ' id:',$(e).find('id').text(),  ' status:', $(e).find('status').text());
+    });
     var $jobStarted = $jobs.filter(function(){
       var statusText = $(this).find('status').text();
       var truth = (statusText == 'STARTED');
@@ -787,7 +797,10 @@ var L$ = (function(my) {
       return truth;
     });
     a.jobId = $jobStarted.children('id').text();
-    // console.log('startTemplate: jobId: ', a.jobId, '; jobStarted: ', $jobStarted[0]);
+    if ($jobStarted.length != 1) {
+      console.log('findJobFromXml: should be 1, but WRONG NUMBER OF JOBS STARTED: ', $jobStarted.length);
+    }
+    console.log('findJobFromXml returning: jobId: ', a.jobId, '; jobStarted: ', $jobStarted[0]);
   }
 
   // This starts a template job, meaning, executes the workflow for the template.
